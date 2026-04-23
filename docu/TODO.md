@@ -53,6 +53,7 @@
 - [ ] 实现 `SubmitCode`：接收代码，转发至 Eino Core Code Judge Agent
 - [ ] 实现 `FinishInterview`：更新面试状态，向 MQ 发布 `interview_finished` 消息
 - [ ] 面试状态写入 Redis，key: `interview:{interview_id}:state`
+- [x] 定义面试状态与阶段领域模型（`InterviewState` / `InterviewStage`，与下方 JSON 一致）
 
 **Redis 面试状态结构**
 ```json
@@ -68,6 +69,7 @@
 ---
 
 ### User / Resume Service
+- [x] 定义结构化简历领域模型（`StructuredResume` 等，`internal/domain`）
 - [ ] 定义 Kitex RPC IDL（注册、登录、上传简历、获取简历）
 - [ ] 实现用户注册/登录，JWT 签发
 - [ ] 实现简历上传：接收 PDF → 存 S3 → 异步触发信息提取 Agent
@@ -77,6 +79,7 @@
 ---
 
 ### Record / Storage Service
+- [x] 定义对话轮次 `InterviewTurn` 领域类型（`internal/domain`）
 - [ ] 定义 Kitex RPC IDL（存储对话轮次、查询面试记录）
 - [ ] 实现 `SaveTurn`：将每轮 ASR 文本存入 PostgreSQL `interview_turns` 表
 - [ ] 实现 `GetInterviewRecord`：按 interview_id 返回完整对话记录
@@ -99,6 +102,7 @@ CREATE TABLE interview_turns (
 ---
 
 ### Report Worker
+- [x] 定义评分报告 `Report` 领域类型（`internal/domain`）
 - [ ] 消费 MQ `interview_finished` 消息
 - [ ] 调用 Record Service 拉取完整对话记录
 - [ ] 构造评分 prompt，调用 LLM 生成多维度评分报告
@@ -125,6 +129,7 @@ CREATE TABLE reports (
 ---
 
 ### 问卷系统
+- [x] 定义问卷标注与 SFT/JSONL 行结构（`QuestionnaireResult`、`SFTMessage` 等）
 - [ ] 定义问卷提交 API `POST /questionnaire/submit`
 - [ ] 接收用户对每轮对话的标注（good/bad + 文字反馈）
 - [ ] 存入 PostgreSQL `questionnaire_results` 表
@@ -160,6 +165,8 @@ CREATE TABLE questionnaire_results (
 ---
 
 ## AI层（Eino Core）
+
+- [x] 引入 Eino 依赖、`compose` 恒等链占位，及 SFT→`schema.Message` 桥接（`internal/einocore`）
 
 ### ASR Node
 - [ ] 接入流式 ASR SDK（火山引擎 / 阿里云）
@@ -201,6 +208,7 @@ closing → end:          用户说结束
 ---
 
 ### RAG 检索
+- [x] 定义题库单条 `BankQuestion` 领域类型（`internal/domain`）
 - [ ] 初始化 VectorDB（Milvus / Qdrant），导入八股题库
 - [ ] 题目 embedding，按技术标签建立索引
 - [ ] 实现检索接口：输入用户技术栈 → 返回 Top-K 候选题目
@@ -237,6 +245,7 @@ closing → end:          用户说结束
 - [ ] 接收代码文本 + 题目信息
 - [ ] 设计评估 prompt，指定输出结构化 JSON
 - [ ] 返回结构化评估结果至 Interview Agent
+- [x] 定义评估结果领域模型 `CodeJudgeResult`（与约定 JSON 对齐）
 
 **输出结构**
 ```json
@@ -267,18 +276,20 @@ closing → end:          用户说结束
 ## 存储层
 
 ### PostgreSQL
-- [ ] 初始化数据库，创建所有表（users / interviews / interview_turns / reports / questionnaire_results）
+- [x] 初始化数据库，创建所有表（users / interviews / interview_turns / reports / questionnaire_results）
 - [ ] 配置连接池
-- [ ] 编写 migration 脚本
+- [x] 编写 migration 脚本
 
 ### Redis
 - [ ] 初始化 Redis 连接
+- [x] 定义 Redis Key 与命名方法（`internal/storage/redis/keys`）
 - [ ] 封装面试状态读写方法
 - [ ] 封装对话 history 读写方法（list 结构，append + 裁剪）
 - [ ] 封装结构化简历读写方法
-- [ ] 配置合理 TTL
+- [x] 配置合理 TTL（默认 + 环境变量 `RESUME_REDIS_TTL` / `INTERVIEW_STATE_TTL`）
 
 ### S3 / Object Storage
+- [x] 定义业务对象路径（简历/音频/SFT 前缀，`internal/storage/s3/paths`）
 - [ ] 配置 S3 客户端
 - [ ] 实现简历上传方法
 - [ ] 实现音频文件上传方法
@@ -289,8 +300,8 @@ closing → end:          用户说结束
 
 ## 消息队列
 
-- [ ] 选型并初始化 MQ（Kafka / RabbitMQ）
-- [ ] 定义 Topic: `interview_finished`
+- [x] 选型并初始化 RabbitMQ（本地 `docker-compose`）
+- [x] 定义 Topic: `interview_finished`（`internal/mq` 常量与事件体）
 - [ ] Interview Service 实现 Producer，面试结束时发布消息
 - [ ] Report Worker 实现 Consumer，消费消息触发报告生成
 - [ ] 消息消费失败时实现重试机制
@@ -299,11 +310,11 @@ closing → end:          用户说结束
 
 ## 基础设施
 
-- [ ] 编写 Docker Compose，本地一键启动所有服务（PostgreSQL / Redis / S3 / MQ）
-- [ ] 配置各服务环境变量（API Keys / DB连接 / MQ地址）
-- [ ] 编写各服务 Dockerfile
-- [ ] 配置日志采集
-- [ ] 配置健康检查端点
+- [x] 编写 Docker Compose，本地一键启动所有服务（PostgreSQL / Redis / S3 / MQ）
+- [x] 配置各服务环境变量（`.env` + `godotenv` + `internal/config` 集中加载）
+- [x] 编写各服务 Dockerfile（当前根目录 `Dockerfile` 构建 `cmd/api`；后续 Kitex/Hertz/Worker 可按同模式增加镜像）
+- [x] 配置日志采集（`LOG_FORMAT=json|text` + `slog` 输出 stdout，便于接入 Loki/ELK/云采集）
+- [x] 配置健康检查端点（`GET /health`、`/ready` 及 `healthz`/`readyz` 别名，`docker-compose` 已接 `api` 服务 healthcheck）
 
 ---
 
