@@ -172,6 +172,40 @@ services:
     networks:
       - ai-interview-net
 
+  # ─────────────────────────────────────────
+  # API（健康检查、日志；后续可扩展为 Hertz 网关）
+  # ─────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-interview-api
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+      HTTP_ADDR: ":8080"
+      POSTGRES_DSN: postgres://aiinterview:aiinterview123@postgres:5432/aiinterview?sslmode=disable
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: aiinterview123
+      REDIS_DB: "0"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - ai-interview-net
+
 # ─────────────────────────────────────────
 # Volumes
 # ─────────────────────────────────────────

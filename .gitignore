@@ -1,0 +1,26 @@
+# 环境变量（保留 .env.example）
+.env
+.env.local
+.env.*.local
+
+# Go
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+settings.json
