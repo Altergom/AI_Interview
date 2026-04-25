@@ -1,0 +1,165 @@
+<mxfile host="drawio.min2k.com" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36" version="@DRAWIO-VERSION@">
+  <diagram name="第 1 页" id="3smt73WRC1wA7pSJKRrS">
+    <mxGraphModel dx="1008" dy="592" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-1" value="Data Layer" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="79" y="955" width="512" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-2" value="Eino Framework" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="728" y="778" width="725" height="467" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-3" value="Kitex RPC Services" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="20" y="627" width="688" height="256" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-4" value="Hertz API Gateway" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="261" y="323" width="268" height="231" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-5" value="React Frontend" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="113" y="20" width="547" height="231" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-6" value="WebRTC / MediaDevices" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="154" y="45" width="232" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-7" value="WebSocket / Stream Client" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="268" y="172" width="254" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-8" value="UI Components" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="436" y="45" width="168" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-9" value="Hertz Server" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="320" y="348" width="150" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-10" value="Request Dispatcher" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="296" y="475" width="198" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-11" value="Interview Service" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="303" y="652" width="184" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-12" value="User/Resume Service" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="55" y="803" width="211" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-13" value="Record/Storage Service" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="368" y="803" width="228" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-14" value="Eino Core" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1027" y="803" width="128" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-15" value="Speech-to-Text" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="763" y="993" width="168" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-16" value="Brain: Doubao/GPT-4o" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="981" y="993" width="219" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-17" value="Text-to-Speech" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="993" width="168" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-18" value="Knowledge: RAG/VectorDB" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=10;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="988" y="1135" width="206" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-19" value="PostgreSQL" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=10;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="114" y="984" width="94" height="71" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-20" value="Redis Cache" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=10;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="258" y="984" width="101" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-21" value="S3/Object Storage" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=10;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="408" y="980" width="147" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-22" value="音视频流" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.29;entryY=-0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-6" target="46ixoHxDEV5ggSQkjNDl-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="270" y="135" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-23" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.71;entryY=-0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-8" target="46ixoHxDEV5ggSQkjNDl-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="520" y="135" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-24" value="WS / SSE" style="curved=1;startArrow=block;endArrow=block;exitX=0.5;exitY=0.99;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-7" target="46ixoHxDEV5ggSQkjNDl-9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-25" value="Auth/Middleware" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-9" target="46ixoHxDEV5ggSQkjNDl-10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-26" value="Kitex RPC" style="curved=1;startArrow=block;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=-0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-10" target="46ixoHxDEV5ggSQkjNDl-11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-27" value="Kitex RPC" style="curved=1;startArrow=block;endArrow=block;exitX=0;exitY=0.95;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-11" target="46ixoHxDEV5ggSQkjNDl-12">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="161" y="742" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-28" value="Kitex RPC" style="curved=1;startArrow=block;endArrow=block;exitX=0.7;exitY=0.99;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-11" target="46ixoHxDEV5ggSQkjNDl-13">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="482" y="742" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-29" value="Graph Orchestration" style="curved=1;startArrow=block;endArrow=block;exitX=1;exitY=0.99;entryX=0;entryY=0.38;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-11" target="46ixoHxDEV5ggSQkjNDl-14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="613" y="742" />
+              <mxPoint x="613" y="778" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-30" value="ASR Node" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.76;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-14" target="46ixoHxDEV5ggSQkjNDl-15">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="847" y="882" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-31" value="LLM Node" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-14" target="46ixoHxDEV5ggSQkjNDl-16">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-32" value="TTS Node" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.76;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-14" target="46ixoHxDEV5ggSQkjNDl-17">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1334" y="882" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-33" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=-0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-16" target="46ixoHxDEV5ggSQkjNDl-18">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-34" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-12" target="46ixoHxDEV5ggSQkjNDl-19">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-35" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.3;exitY=0.99;entryX=0.5;entryY=-0.01;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-11" target="46ixoHxDEV5ggSQkjNDl-20">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="308" y="742" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="46ixoHxDEV5ggSQkjNDl-36" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="46ixoHxDEV5ggSQkjNDl-13" target="46ixoHxDEV5ggSQkjNDl-21">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
