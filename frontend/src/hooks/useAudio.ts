@@ -124,12 +124,3 @@ export const useAudio = (interviewId: string) => {
     stopRecording,
   };
 };
-
-          });
-
-          resolve(true);
-        } catch (err: any) {
-          setError('音频上传失败');
-          resolve(false);
-        } finally {
-          setIsRecording(false);
