@@ -2,21 +2,23 @@
 
 > 本文档描述所有 HTTP 端点、SSE 事件格式及 Kitex RPC IDL 定义。
 > Base URL: `https://api.aiinterview.com/v1`
-> 所有请求需携带 Header: `Authorization: Bearer {jwt_token}`
+> 所有请求需携带 Header: `Authorization: Bearer {jwt_token}`（游客模式除外）
 
 ---
 
 ## 目录
 
 1. [认证模块](#认证模块)
-2. [简历模块](#简历模块)
-3. [面试模块](#面试模块)
-4. [代码提交模块](#代码提交模块)
-5. [问卷模块](#问卷模块)
-6. [报告模块](#报告模块)
-7. [SSE 事件格式](#sse-事件格式)
-8. [Kitex RPC IDL](#kitex-rpc-idl)
-9. [错误码](#错误码)
+2. [设备检测模块](#设备检测模块)
+3. [简历模块](#简历模块)
+4. [面试配置模块](#面试配置模块)
+5. [面试模块](#面试模块)
+6. [代码提交模块](#代码提交模块)
+7. [报告模块](#报告模块)
+8. [问卷模块](#问卷模块)
+9. [SSE 事件格式](#sse-事件格式)
+10. [Kitex RPC IDL](#kitex-rpc-idl)
+11. [错误码](#错误码)
 
 ---
 
@@ -79,12 +81,78 @@ POST /auth/login
 
 ---
 
-## 简历模块
-
-### 上传简历
+### 游客模式
 
 ```
-POST /resume/upload
+POST /auth/guest
+```
+
+**Request Body**
+```json
+{}
+```
+
+**Response 200**
+```json
+{
+  "code": 0,
+  "data": {
+    "user_id": "guest_uuid",
+    "token": "jwt_token",
+    "expires_at": "2024-01-02T10:00:00Z"
+  }
+}
+```
+
+**说明**
+- 生成临时游客账号，有效期 24 小时
+- 游客数据（简历、面试记录）24 小时后自动清理
+- 游客可随时通过注册转为正式用户
+
+---
+
+## 设备检测模块
+
+### 检测设备状态
+
+```
+POST /device/check
+```
+
+**Request Body**
+```json
+{
+  "has_microphone": true,
+  "has_camera": true,
+  "browser": "Chrome 120",
+  "os": "Windows 11"
+}
+```
+
+**Response 200**
+```json
+{
+  "code": 0,
+  "data": {
+    "status": "ready",
+    "message": "设备检测通过，可以开始面试"
+  }
+}
+```
+
+**说明**
+- 前端完成设备权限获取后，调用此接口确认设备状态
+- 服务端记录设备信息用于后续故障排查
+- 如果设备检测失败，用户可选择重试或退出
+
+---
+
+## 简历模块
+
+### 解析简历（辅助功能）
+
+```
+POST /resume/parse
 Content-Type: multipart/form-data
 ```
 
@@ -98,23 +166,73 @@ Content-Type: multipart/form-data
 {
   "code": 0,
   "data": {
-    "resume_id": "uuid",
-    "status": "parsing",
-    "message": "简历解析中，请稍候"
+    "skills": ["Java", "Redis", "MySQL"],
+    "projects": [
+      {
+        "name": "电商平台",
+        "tech_stack": ["SpringBoot", "Redis"],
+        "description": "负责订单模块开发",
+        "highlights": ["QPS提升3倍", "响应时间降低50%"]
+      }
+    ],
+    "internships": [
+      {
+        "company": "字节跳动",
+        "position": "后端开发实习生",
+        "duration": "2023.06-2023.09"
+      }
+    ],
+    "education": {
+      "school": "xxx大学",
+      "major": "计算机科学与技术",
+      "degree": "本科",
+      "graduation": "2025-06"
+    }
   }
 }
 ```
 
 **说明**
-- 上传成功后异步触发信息提取 Agent 解析简历
-- 前端可轮询 `GET /resume/status` 或监听 SSE `resume.parsed` 事件
+- 上传 PDF 后立即返回解析结果（同步）
+- 前端将解析结果填充到表单栏框
+- 用户可以查看、修改后再提交
+- 解析失败返回错误码 3001，用户可选择手动填写
 
 ---
 
-### 查询简历解析状态
+### 提交简历信息
 
 ```
-GET /resume/status
+POST /resume/submit
+```
+
+**Request Body**
+```json
+{
+  "user_id": "uuid",
+  "skills": ["Java", "Redis", "MySQL"],
+  "projects": [
+    {
+      "name": "电商平台",
+      "tech_stack": ["SpringBoot", "Redis"],
+      "description": "负责订单模块开发",
+      "highlights": ["QPS提升3倍"]
+    }
+  ],
+  "internships": [
+    {
+      "company": "字节跳动",
+      "position": "后端开发实习生",
+      "duration": "2023.06-2023.09"
+    }
+  ],
+  "education": {
+    "school": "xxx大学",
+    "major": "计算机科学与技术",
+    "degree": "本科",
+    "graduation": "2025-06"
+  }
+}
 ```
 
 **Response 200**
@@ -122,35 +240,67 @@ GET /resume/status
 {
   "code": 0,
   "data": {
-    "status": "done",
-    "resume": {
-      "user_id": "uuid",
-      "skills": ["Java", "Redis", "MySQL"],
-      "projects": [
-        {
-          "name": "电商平台",
-          "tech_stack": ["SpringBoot", "Redis"],
-          "description": "...",
-          "highlights": ["QPS提升3倍"]
-        }
-      ],
-      "internships": [],
-      "education": {
-        "school": "xxx大学",
-        "major": "计算机科学",
-        "graduation": "2025-06"
-      }
-    }
+    "resume_id": "uuid",
+    "message": "简历信息保存成功"
   }
 }
 ```
 
-**status 枚举**
+**说明**
+- 无论是手动填写还是 PDF 解析，最终都调用此接口提交
+- 提交的是用户确认后的最终数据
+- 简历信息存入 Redis，key: `resume:{user_id}`，TTL 7天
+
+---
+
+## 面试配置模块
+
+### 选择面试岗位和方向
+
+```
+POST /interview/config
+```
+
+**Request Body**
+```json
+{
+  "user_id": "uuid",
+  "position": "golang",
+  "direction": "backend"
+}
+```
+
+**position 枚举**
 | 值 | 说明 |
 |---|---|
-| parsing | 解析中 |
-| done | 解析完成 |
-| failed | 解析失败 |
+| golang | Golang开发 |
+| java | Java开发 |
+| frontend | 前端工程师 |
+| test | 测试开发 |
+
+**direction 枚举**
+| 值 | 说明 |
+|---|---|
+| backend | 软件开发 |
+| cloud | 云平台运维开发 |
+| agent | Agent开发 |
+| server | 服务端开发 |
+
+**Response 200**
+```json
+{
+  "code": 0,
+  "data": {
+    "config_id": "uuid",
+    "message": "配置保存成功"
+  }
+}
+```
+
+**说明**
+- 岗位决定题库范围
+- 方向影响面试侧重点
+- 配置信息存入 Redis，关联 user_id
 
 ---
 
