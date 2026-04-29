@@ -6,10 +6,13 @@
 
 ## 前端层（React Frontend）
 
-### WebRTC / 音频采集
+### WebRTC / 音视频采集
 - [ ] 使用 `getUserMedia` 采集麦克风音频流
+- [ ] 使用 `getUserMedia` 采集摄像头视频流
+- [ ] 实现设备检测功能（麦克风+摄像头权限测试）
 - [ ] 集成 VAD（语音活动检测），判断用户停止说话
 - [ ] 音频分片，通过 WebRTC 或 AudioWorklet 实时传输至后端
+- [ ] 视频流实时传输至后端（或录制后上传 S3）
 - [ ] 设备权限异常处理（用户拒绝授权、设备不存在）
 
 ### SSE Client
@@ -25,20 +28,30 @@
 - [ ] 算法阶段显示编辑器，其他阶段隐藏
 
 ### 页面与路由
-- [ ] 简历上传页：支持 PDF 上传，上传成功后跳转等待页
-- [ ] 等待页：显示面试注意事项，等待简历解析完成
+- [ ] Index 首页：提供"登录/注册"和"游客体验"两个入口
+- [ ] 登录/注册页：用户认证（可选）
+- [ ] 简历信息页：表单式栏框，支持手动填写或上传 PDF 自动填充
+- [ ] 岗位选择页：选择面试岗位（Golang/Java/前端/测试等）
+- [ ] 方向选择页：选择面试方向（软件开发/云平台运维/Agent开发等）
+- [ ] 准备页面：测试麦克风和摄像头，设备检测失败可重试或退出
 - [ ] 面试间页：左侧对话记录 + 右侧代码编辑器（算法阶段）+ 顶部阶段进度
-- [ ] 问卷页：逐轮展示 ASR 文本，用户对每轮打标 good/bad + 文字反馈
+- [ ] 报告生成页：显示"报告生成中"等待状态，可显示预估时间
 - [ ] 报告页：展示多维度评分雷达图 + 优劣势总结
+- [ ] 问卷页：逐轮展示 ASR 文本，用户对每轮打标 good/bad + 文字反馈
+- [ ] 结束页：感谢语 + "再来一次"按钮 + 报告链接（如果已生成）
 
 ---
 
 ## 网关层（Hertz Server）
 
 - [ ] 初始化 Hertz 服务，配置路由
-- [ ] 实现 HAuth 中间件，JWT 鉴权
+- [ ] 实现 HAuth 中间件，JWT 鉴权（支持游客 token）
 - [ ] 实现 SSE 端点 `GET /interview/stream`，维护长连接
 - [ ] 实现 HTTP POST 端点 `POST /interview/code/submit`，接收代码提交
+- [ ] 实现 HTTP POST 端点 `POST /device/check`，设备检测
+- [ ] 实现 HTTP POST 端点 `POST /resume/parse`，简历解析
+- [ ] 实现 HTTP POST 端点 `POST /resume/submit`，简历提交
+- [ ] 实现 HTTP POST 端点 `POST /interview/config`，岗位方向配置
 - [ ] 实现 Request Dispatcher，根据请求类型通过 Kitex RPC 转发至对应服务
 - [ ] 全局错误处理与日志中间件
 
@@ -70,11 +83,13 @@
 
 ### User / Resume Service
 - [x] 定义结构化简历领域模型（`StructuredResume` 等，`internal/domain`）
-- [ ] 定义 Kitex RPC IDL（注册、登录、上传简历、获取简历）
+- [ ] 定义 Kitex RPC IDL（注册、登录、游客模式、简历解析、简历提交）
 - [ ] 实现用户注册/登录，JWT 签发
-- [ ] 实现简历上传：接收 PDF → 存 S3 → 异步触发信息提取 Agent
+- [ ] 实现游客模式：生成临时 user_id 和 token，TTL 24小时
+- [ ] 实现简历解析：接收 PDF → 调用信息提取 Agent → 返回结构化 JSON
+- [ ] 实现简历提交：接收表单数据 → 存 Redis，key: `resume:{user_id}`，TTL 7天
 - [ ] 实现 `GetResume`：从 Redis 返回结构化简历 JSON
-- [ ] 简历解析结果存 Redis，key: `resume:{user_id}`，TTL 7天
+- [ ] 游客数据定期清理 job（24小时后删除）
 
 ---
 
@@ -84,6 +99,7 @@
 - [ ] 实现 `SaveTurn`：将每轮 ASR 文本存入 PostgreSQL `interview_turns` 表
 - [ ] 实现 `GetInterviewRecord`：按 interview_id 返回完整对话记录
 - [ ] 音频文件上传至 S3，路径: `/audio/{interview_id}/{turn_id}.wav`
+- [ ] 视频文件上传至 S3，路径: `/video/{interview_id}/full.mp4`
 
 **PostgreSQL interview_turns 表结构**
 ```sql
@@ -286,13 +302,16 @@ closing → end:          用户说结束
 - [ ] 封装面试状态读写方法
 - [ ] 封装对话 history 读写方法（list 结构，append + 裁剪）
 - [ ] 封装结构化简历读写方法
+- [ ] 封装面试配置读写方法（岗位+方向）
+- [ ] 封装游客数据读写方法（TTL 24小时）
 - [x] 配置合理 TTL（默认 + 环境变量 `RESUME_REDIS_TTL` / `INTERVIEW_STATE_TTL`）
 
 ### S3 / Object Storage
-- [x] 定义业务对象路径（简历/音频/SFT 前缀，`internal/storage/s3/paths`）
+- [x] 定义业务对象路径（简历/音频/视频/SFT 前缀，`internal/storage/s3/paths`）
 - [ ] 配置 S3 客户端
-- [ ] 实现简历上传方法
+- [ ] 实现简历 PDF 上传方法（用于备份原始文件）
 - [ ] 实现音频文件上传方法
+- [ ] 实现视频文件上传方法
 - [ ] 实现 JSONL 文件上传方法
 - [ ] 配置 Bucket 权限策略
 
@@ -322,15 +341,19 @@ closing → end:          用户说结束
 
 ```
 1. 存储层初始化（PostgreSQL / Redis / S3）
-2. User/Resume Service（用户注册登录、简历上传）
+2. User/Resume Service（用户注册登录、游客模式、简历解析、简历提交）
 3. 信息提取 Agent（简历解析）
-4. ASR Node + TTS Node（语音链路跑通）
-5. Interview Agent + LLM Node（基础对话跑通）
-6. Router Node（阶段状态机）
-7. RAG 检索 + 题库导入
-8. Code Judge Agent + 代码编辑器前端
-9. Record Service + 问卷系统
-10. MQ + Report Worker（异步报告生成）
-11. 前端完整页面
-12. 流式 pipeline 联调（ASR→LLM→TTS 延迟优化）
+4. 前端基础页面（Index、登录/注册、简历信息页、岗位方向选择）
+5. 设备检测功能（前端 + 后端接口）
+6. ASR Node + TTS Node（语音链路跑通）
+7. 视频采集与存储（前端 + S3 上传）
+8. Interview Agent + LLM Node（基础对话跑通）
+9. Router Node（阶段状态机）
+10. RAG 检索 + 题库导入
+11. Code Judge Agent + 代码编辑器前端
+12. Record Service + 问卷系统
+13. MQ + Report Worker（异步报告生成）
+14. 报告生成页 + 报告展示页
+15. 前端完整页面联调
+16. 流式 pipeline 联调（ASR→LLM→TTS 延迟优化）
 ```
