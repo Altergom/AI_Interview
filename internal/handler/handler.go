@@ -1,6 +1,9 @@
 package handler
 
-import "net/http"
+import (
+	"ai_interview/internal/service"
+	"net/http"
+)
 
 // Router 聚合所有子模块 handler，统一注册路由。
 type Router struct {
@@ -12,12 +15,12 @@ type Router struct {
 	questionnaire *questionnaireHandler
 }
 
-func NewRouter() *Router {
+func NewRouter(interviewSvc service.InterviewService) *Router {
 	return &Router{
 		auth:          &authHandler{},
 		device:        &deviceHandler{},
 		resume:        &resumeHandler{},
-		interview:     &interviewHandler{},
+		interview:     NewInterviewHandler(interviewSvc),
 		report:        &reportHandler{},
 		questionnaire: &questionnaireHandler{},
 	}

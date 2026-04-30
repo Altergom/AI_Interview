@@ -23,3 +23,13 @@ func InterviewHistoryKey(interviewID string) string {
 func ResumeKey(userID string) string {
 	return fmt.Sprintf("%s:%s", PrefixResume, userID)
 }
+
+// InterviewConfigKey interview:config:{config_id}
+func InterviewConfigKey(configID string) string {
+	return fmt.Sprintf("%s:config:%s", PrefixInterview, configID)
+}
+
+// UserInterviewConfigKey interview:user:{user_id}:config
+func UserInterviewConfigKey(userID string) string {
+	return fmt.Sprintf("%s:user:%s:config", PrefixInterview, userID)
+}
