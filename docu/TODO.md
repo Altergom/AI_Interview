@@ -82,14 +82,88 @@
 ---
 
 ### User / Resume Service
+
+#### 技术方案（已确认）
+- **IDL 设计**：单一 UserService，PDF 通过 S3 预签名 URL 上传（避免大文件 RPC 传输）
+- **JWT 管理**：仅 Access Token（60分钟有效期），游客转正重新签发 Token
+- **错误处理**：统一错误码 + BizError，Hertz 网关统一映射到 HTTP 响应
+- **游客清理**：独立 Cleanup Worker（`cmd/cleanup_worker`），每小时执行一次
+- **简历解析**：降级策略，LLM 失败返回空结构体，前端显示空表单
+- **数据持久化**：**PostgreSQL 主存储 + Redis 按需缓存**（1小时TTL）
+  - 提交简历：存 PostgreSQL
+  - 获取简历：先查 Redis，miss 则查 PG 并回填
+  - 面试开始时：预热缓存
+- **服务部署**：初期单体部署（Hertz 内嵌 Service 逻辑），后期拆分微服务
+
+#### 实现任务
 - [x] 定义结构化简历领域模型（`StructuredResume` 等，`internal/domain`）
-- [ ] 定义 Kitex RPC IDL（注册、登录、游客模式、简历解析、简历提交）
-- [ ] 实现用户注册/登录，JWT 签发
-- [ ] 实现游客模式：生成临时 user_id 和 token，TTL 24小时
-- [ ] 实现简历解析：接收 PDF → 调用信息提取 Agent → 返回结构化 JSON
-- [ ] 实现简历提交：接收表单数据 → 存 Redis，key: `resume:{user_id}`，TTL 7天
-- [ ] 实现 `GetResume`：从 Redis 返回结构化简历 JSON
-- [ ] 游客数据定期清理 job（24小时后删除）
+- [ ] 定义 Kitex RPC IDL（`idl/user_service.thrift`）
+  - 注册、登录、游客模式
+  - 简历解析（传 S3 Key，不传二进制内容）
+  - 简历提交、获取
+- [ ] 实现 JWT 工具（`internal/auth/jwt.go`）
+  - `GenerateToken(userID, username, isGuest, expMinutes)`
+  - `ValidateToken(tokenString)`
+  - Secret 从环境变量 `JWT_SECRET` 读取
+- [ ] 实现密码加密（`internal/auth/password.go`）
+  - 使用 `bcrypt.GenerateFromPassword`
+- [ ] 实现用户注册/登录（`internal/service/user/auth.go`）
+  - 注册：检查邮箱 → 密码加密 → 插入 PostgreSQL → 签发 JWT
+  - 登录：查询用户 → 验证密码 → 签发 JWT
+- [ ] 实现游客模式（`internal/service/user/guest.go`）
+  - 生成 `guest_` 前缀 ID
+  - 插入 PostgreSQL（`is_guest = TRUE`）
+  - 签发 24 小时有效 Token
+- [ ] 实现 S3 预签名 URL 生成（`internal/service/user/upload.go`）
+  - `GetUploadURL()` 返回 5 分钟有效的预签名 URL
+  - 前端直接上传到 S3
+- [ ] 实现简历解析（`internal/service/user/resume.go`）
+  - PDF 文本提取：使用 `pdfcpu` 库
+  - LLM 结构化提取：调用 Doubao/GPT-4o
+  - 容错：LLM 失败返回空结构体
+  - 备份原始 PDF 到 S3
+- [ ] 实现简历提交（`internal/service/user/resume.go`）
+  - 存入 PostgreSQL `resumes` 表（主存储）
+  - **不存 Redis**（按需缓存）
+- [ ] 实现 `GetResume`（`internal/service/user/resume.go`）
+  - 先查 Redis（`resume:{user_id}`，TTL 1小时）
+  - Redis miss → 查 PostgreSQL → 回填 Redis
+- [ ] 实现游客数据清理 Worker（`cmd/cleanup_worker/main.go`）
+  - 每小时执行一次
+  - 删除 24 小时前创建的游客用户（PostgreSQL）
+  - 清理 Redis 中的游客简历（`resume:guest_*`）
+  - **不清理**面试记录（用于数据分析）
+- [ ] 创建 PostgreSQL 表
+  ```sql
+  CREATE TABLE users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      username VARCHAR(100) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      is_guest BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+  );
+  
+  CREATE TABLE resumes (
+      user_id UUID PRIMARY KEY,
+      data JSONB NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+  );
+  
+  CREATE INDEX idx_users_email ON users(email);
+  CREATE INDEX idx_users_is_guest ON users(is_guest);
+  ```
+
+#### 并发控制（内存优化）
+- [ ] 实现文件上传并发限制（信号量，最多 5 并发）
+- [ ] 实现文件大小限制（Hertz 中间件，最大 3MB）
+- [ ] 实现流式 PDF 处理（避免全部加载到内存）
+
+#### 相关文档
+- 详细实现方案：`C:\Users\25422\.claude\plans\fuzzy-munching-gosling.md`
+- 内存优化方案：`docu/内存优化方案.md`
 
 ---
 
