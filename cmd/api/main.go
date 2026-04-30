@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"ai_interview/internal/config"
+	"ai_interview/internal/handler"
 	"ai_interview/internal/infra/health"
 	ilog "ai_interview/internal/infra/log"
 )
@@ -26,6 +27,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	health.New(cfg).Register(mux)
+	handler.NewRouter().Register(mux)
 	mux.HandleFunc("GET /", root)
 
 	srv := &http.Server{
