@@ -17,7 +17,7 @@ type checkResult struct {
 	Detail string `json:"detail,omitempty"`
 }
 
-func runReadiness(ctx context.Context, cfg *config.App) (map[string]checkResult, bool) {
+func runReadiness(ctx context.Context, cfg *config.Config) (map[string]checkResult, bool) {
 	out := make(map[string]checkResult)
 	allOK := true
 
@@ -55,7 +55,7 @@ func checkPostgres(ctx context.Context, dsn string) checkResult {
 	return checkResult{OK: true, Detail: "pong"}
 }
 
-func checkRedis(ctx context.Context, cfg *config.App) checkResult {
+func checkRedis(ctx context.Context, cfg *config.Config) checkResult {
 	if cfg.RedisAddr == "" {
 		return checkResult{OK: true, Detail: "skipped (REDIS_ADDR empty)"}
 	}

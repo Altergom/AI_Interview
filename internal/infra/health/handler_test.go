@@ -9,7 +9,7 @@ import (
 )
 
 func TestLive(t *testing.T) {
-	h := New(&config.App{})
+	h := New(&config.Config{})
 	mux := http.NewServeMux()
 	h.Register(mux)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)

@@ -12,10 +12,10 @@ import (
 
 // Handler 提供存活与就绪探针，供 Kubernetes / Docker Compose / 负载均衡使用。
 type Handler struct {
-	cfg *config.App
+	cfg *config.Config
 }
 
-func New(cfg *config.App) *Handler {
+func New(cfg *config.Config) *Handler {
 	return &Handler{cfg: cfg}
 }
 
