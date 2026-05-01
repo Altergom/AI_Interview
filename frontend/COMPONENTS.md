@@ -335,7 +335,7 @@ import { Container } from '@/components/layout/Container';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 <ErrorBoundary>
-  <App />
+  <Config />
 </ErrorBoundary>
 
 // 自定义错误 UI
