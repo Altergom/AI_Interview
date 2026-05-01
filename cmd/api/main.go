@@ -18,26 +18,26 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load()
+	err := config.Load()
 	if err != nil {
 		slog.Error("load config", "err", err)
 		os.Exit(1)
 	}
-	ilog.Init(cfg.LogLevel, cfg.LogFormat, cfg.Env)
+	ilog.Init(config.Cfg.LogLevel, config.Cfg.LogFormat, config.Cfg.Env)
 
 	mux := http.NewServeMux()
-	health.New(cfg).Register(mux)
+	health.New(config.Cfg).Register(mux)
 	handler.NewRouter().Register(mux)
 	mux.HandleFunc("GET /", root)
 
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
+		Addr:              config.Cfg.HTTPAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
-		slog.Info("http listen", "addr", cfg.HTTPAddr)
+		slog.Info("http listen", "addr", config.Cfg.HTTPAddr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("listen", "err", err)
 			os.Exit(1)

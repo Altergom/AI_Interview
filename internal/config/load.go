@@ -15,10 +15,13 @@ import (
 // Default 搜索路径按顺序尝试加载，先加载的文件先生效；后加载的 .env 可覆盖前文件中的键
 // （与 godotenv 行为：后 Load 会覆盖同键）。通常本地使用 `.env` + 可选 `.env.local` 覆盖。
 var defaultEnvFiles = []string{".env", ".env.local"}
+var Cfg *Config
 
-// Load 从 .env 文件与进程环境构建 App。若未设置某变量则使用合理默认值；解析失败时返回错误。
+// Load 从 .env 文件与进程环境构建 Config。若未设置某变量则使用合理默认值；解析失败时返回错误。
 // 可传入自定义 env 文件路径，传 nil 或空则使用 defaultEnvFiles。
-func Load(envFiles ...string) (*App, error) {
+func Load(envFiles ...string) error {
+	var err error
+
 	files := envFiles
 	if len(files) == 0 {
 		files = defaultEnvFiles
@@ -27,7 +30,12 @@ func Load(envFiles ...string) (*App, error) {
 		_ = godotenv.Load(f) // 文件不存在不报错
 	}
 
-	return parseFromEnv()
+	Cfg, err = parseFromEnv()
+	if err != nil {
+		return fmt.Errorf("[load]config", "err", err)
+	}
+
+	return nil
 }
 
 func get(key, def string) string {
@@ -74,7 +82,7 @@ func getDurationOrDefault(key string, def time.Duration) (time.Duration, error) 
 	return d, nil
 }
 
-func parseFromEnv() (*App, error) {
+func parseFromEnv() (*Config, error) {
 	resumeTTL, err := getDurationOrDefault("RESUME_REDIS_TTL", ResumeRedisTTL)
 	if err != nil {
 		return nil, err
@@ -104,7 +112,7 @@ func parseFromEnv() (*App, error) {
 		logFormat = "text"
 	}
 
-	return &App{
+	return &Config{
 		Env:         get("APP_ENV", "development"),
 		LogLevel:    get("LOG_LEVEL", "info"),
 		LogFormat:   logFormat,
@@ -129,10 +137,24 @@ func parseFromEnv() (*App, error) {
 		JWTIssuer:       get("JWT_ISSUER", "ai_interview"),
 		JWTAccessExpMin: accessMin,
 
-		OpenAIAPIKey:  get("OPENAI_API_KEY", ""),
-		OpenAIBaseURL: get("OPENAI_BASE_URL", ""),
-		DoubaoAPIKey:  get("DOUBAO_API_KEY", ""),
-		DoubaoBaseURL: get("DOUBAO_BASE_URL", ""),
+		OpenAIAPIKey:    get("OPENAI_API_KEY", ""),
+		OpenAIBaseURL:   get("OPENAI_BASE_URL", ""),
+		DoubaoAPIKey:    get("DOUBAO_API_KEY", ""),
+		DoubaoBaseURL:   get("DOUBAO_BASE_URL", ""),
+		QwenAPIKey:      get("QWEN_API_KEY", ""),
+		QwenBaseURL:     get("QWEN_BASE_URL", ""),
+		DeepSeekAPIKey:  get("DEEP_SEEK_API_KEY", ""),
+		DeepSeekBaseURL: get("DEEP_SEEK_BASE_URL", ""),
+		ClaudeAPIKey:    get("CLAUDE_API_KEY", ""),
+		ClaudeBaseURL:   get("CLAUDE_BASE_URL", ""),
+		GenimiAPIKey:    get("GENIMI_API_KEY", ""),
+		GenimiBaseURL:   get("GENIMI_BASE_URL", ""),
+
+		Supervisor: get("SUPERVISOR", "gpt-4o"),
+		Selector:   get("Selector", "gpt-4o"),
+		Manager:    get("MANAGER", "gpt-4o"),
+		Analyzer:   get("Analyzer", "gpt-4o"),
+		Evaluator:  get("Evaluator", "gpt-4o"),
 
 		ResumeRedisTTL:    resumeTTL,
 		InterviewStateTTL: interviewTTL,
