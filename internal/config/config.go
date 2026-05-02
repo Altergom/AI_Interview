@@ -57,6 +57,11 @@ type Config struct {
 	Analyzer   string
 	Evaluator  string
 
+	// ASR/TTS 模型配置
+	ASRModel string // ASR 模型名称
+	TTSModel string // TTS 模型名称
+	TTSVoice string // TTS 音色
+
 	// TTL：可由 RESUME_REDIS_TTL、INTERVIEW_STATE_TTL 等 duration 字符串覆盖
 	ResumeRedisTTL    time.Duration
 	InterviewStateTTL time.Duration
