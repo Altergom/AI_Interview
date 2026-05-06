@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"ai_interview/internal/domain"
-	"ai_interview/internal/einocore/agent"
 	"ai_interview/internal/einocore/compose"
 )
 
@@ -18,26 +17,15 @@ type interviewServiceImpl struct {
 	graph          *compose.InterviewGraph
 }
 
-// NewInterviewService 创建 InterviewService 实例
+// NewInterviewService 创建 InterviewService 实例，所有依赖从外部注入。
 func NewInterviewService(
 	sessionManager *SessionManager,
-) (InterviewService, error) {
-	// 创建 Supervisor
-	supervisor, err := agent.NewSupervisor()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create supervisor: %w", err)
-	}
-
-	// 创建 Graph
-	graph, err := compose.NewInterviewGraph(context.Background(), supervisor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create graph: %w", err)
-	}
-
+	graph *compose.InterviewGraph,
+) InterviewService {
 	return &interviewServiceImpl{
 		sessionManager: sessionManager,
 		graph:          graph,
-	}, nil
+	}
 }
 
 // SetConfig 保存面试岗位和方向配置
