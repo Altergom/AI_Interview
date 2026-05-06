@@ -1,13 +1,13 @@
 package main
 
 import (
+	"ai_interview/internal/log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"ai_interview/internal/app"
 	"ai_interview/internal/config"
-	"ai_interview/internal/infra/log"
 )
 
 func main() {

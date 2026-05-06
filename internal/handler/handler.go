@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"ai_interview/internal/log"
 	"context"
 	"net/http"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 
 	"ai_interview/internal/config"
-	"ai_interview/internal/infra/log"
 	"ai_interview/internal/service"
 )
 

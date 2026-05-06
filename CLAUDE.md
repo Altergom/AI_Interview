@@ -130,7 +130,21 @@ test(user): 补充 userService 单元测试
 
 ---
 
-## 给 Claude 的指令
+## 日志规范
+
+- 统一使用 `ai_interview/internal/infra/log` 包，禁止直接使用 `hlog` 或 `slog`
+- 格式：`[组件名] 动作: 具体信息`
+  ```go
+  log.Infof("[Redis] connected")
+  log.Errorf("[Postgres] ping failed: %v", err)
+  log.Infof("[InterviewService] creating interview for user %s", userID)
+  ```
+- 级别使用规范：
+  - `Debug`：开发调试，详细中间状态（LLM 输入输出、Redis 读写 key）
+  - `Info`：正常业务关键节点（服务启动、面试创建、阶段切换）
+  - `Warn`：可继续运行但值得关注（重试、Redis miss 回源）
+  - `Error`：操作失败需处理（数据库写入失败、LLM 调用失败）
+- 业务层（handler/service）使用 `hlog.CtxInfof(ctx, ...)` 注入请求上下文
 
 - 修改代码前，先说明改动范围和思路，等我确认再执行
 - 新增依赖前，先告知包名和用途

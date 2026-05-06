@@ -12,7 +12,7 @@ import (
 
 // Init 以 zap 为后端初始化全局 hlog。
 // LOG_LEVEL:  debug | info | warn | error
-// LOG_FORMAT: text（本地开发，带颜色）| json（生产/容器，便于采集）
+// LOG_FORMAT: text（本地开发）| json（生产/容器）
 func Init(level, format, env string) {
 	encCfg := zap.NewProductionEncoderConfig()
 	encCfg.TimeKey = "time"
@@ -22,13 +22,16 @@ func Init(level, format, env string) {
 	if strings.ToLower(strings.TrimSpace(format)) == "json" {
 		enc = zapcore.NewJSONEncoder(encCfg)
 	} else {
-		encCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		encCfg.EncodeLevel = func(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
+			enc.AppendString("[" + l.CapitalString() + "]")
+		}
 		enc = zapcore.NewConsoleEncoder(encCfg)
 	}
 
 	logger := hertzzap.NewLogger(
 		hertzzap.WithZapOptions(
 			zap.WithCaller(true),
+			zap.AddCallerSkip(3),
 			zap.Fields(zap.String("env", env)),
 		),
 		hertzzap.WithCoreEnc(enc),
@@ -38,6 +41,7 @@ func Init(level, format, env string) {
 	hlog.SetLevel(parseLevel(level))
 }
 
+func Debugf(format string, v ...any) { hlog.Debugf(format, v...) }
 func Infof(format string, v ...any)  { hlog.Infof(format, v...) }
 func Warnf(format string, v ...any)  { hlog.Warnf(format, v...) }
 func Errorf(format string, v ...any) { hlog.Errorf(format, v...) }
