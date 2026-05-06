@@ -1,35 +1,59 @@
 package log
 
 import (
-	"log/slog"
-	"os"
 	"strings"
+
+	hertzzap "github.com/hertz-contrib/logger/zap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
-// Init 将默认 slog 输出到 stdout：text 便于本地阅读，json 便于容器与日志采集（Loki、ELK、云厂商采集器）。
+// Init 以 zap 为后端初始化全局 hlog。
+// LOG_LEVEL:  debug | info | warn | error
+// LOG_FORMAT: text（本地开发，带颜色）| json（生产/容器，便于采集）
 func Init(level, format, env string) {
-	lvl := parseLevel(level)
-	opts := &slog.HandlerOptions{Level: lvl}
-	var h slog.Handler
-	switch strings.ToLower(strings.TrimSpace(format)) {
-	case "json":
-		h = slog.NewJSONHandler(os.Stdout, opts)
-	default:
-		h = slog.NewTextHandler(os.Stdout, opts)
+	encCfg := zap.NewProductionEncoderConfig()
+	encCfg.TimeKey = "time"
+	encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	var enc zapcore.Encoder
+	if strings.ToLower(strings.TrimSpace(format)) == "json" {
+		enc = zapcore.NewJSONEncoder(encCfg)
+	} else {
+		encCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		enc = zapcore.NewConsoleEncoder(encCfg)
 	}
-	logger := slog.New(h).With("env", env)
-	slog.SetDefault(logger)
+
+	logger := hertzzap.NewLogger(
+		hertzzap.WithZapOptions(
+			zap.WithCaller(true),
+			zap.Fields(zap.String("env", env)),
+		),
+		hertzzap.WithCoreEnc(enc),
+	)
+
+	hlog.SetLogger(logger)
+	hlog.SetLevel(parseLevel(level))
 }
 
-func parseLevel(s string) slog.Level {
+func Infof(format string, v ...any)  { hlog.Infof(format, v...) }
+func Warnf(format string, v ...any)  { hlog.Warnf(format, v...) }
+func Errorf(format string, v ...any) { hlog.Errorf(format, v...) }
+func Info(v ...any)                  { hlog.Info(v...) }
+func Warn(v ...any)                  { hlog.Warn(v...) }
+func Error(v ...any)                 { hlog.Error(v...) }
+
+func parseLevel(s string) hlog.Level {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "debug":
-		return slog.LevelDebug
+		return hlog.LevelDebug
 	case "warn", "warning":
-		return slog.LevelWarn
+		return hlog.LevelWarn
 	case "error":
-		return slog.LevelError
+		return hlog.LevelError
 	default:
-		return slog.LevelInfo
+		return hlog.LevelInfo
 	}
 }
