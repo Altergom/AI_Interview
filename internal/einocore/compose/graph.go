@@ -2,6 +2,8 @@ package compose
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/compose"
@@ -160,43 +162,103 @@ func (ig *InterviewGraph) callSupervisor(ctx context.Context, input GraphInput) 
 	return output, nil
 }
 
+// SupervisorResponse Supervisor 的 JSON 响应格式
+type SupervisorResponse struct {
+	Response    string `json:"response"`     // 回复内容
+	NeedTTS     bool   `json:"need_tts"`     // 是否需要语音输出
+	StageAction string `json:"stage_action"` // 阶段动作：continue | advance | finish
+}
+
 // parseSupervisorOutput 解析 Supervisor 的输出
 func parseSupervisorOutput(text string, currentStage domain.InterviewStage) GraphOutput {
-	// TODO: 实现 JSON 解析
-	// 当前简化实现：直接返回文本
+	// 1. 尝试提取 JSON（可能包含在 markdown 代码块中）
+	jsonText := extractJSON(text)
 
-	// 判断是否需要切换阶段
-	// 简化逻辑：如果输出包含特定关键词，则切换阶段
+	// 2. 尝试解析 JSON
+	var resp SupervisorResponse
+	if err := json.Unmarshal([]byte(jsonText), &resp); err != nil {
+		// 解析失败，回退到简单实现
+		// 这样即使 LLM 偶尔不返回 JSON，系统也能继续工作
+		return GraphOutput{
+			Text:     text,
+			NewStage: currentStage,
+			Context:  make(map[string]any),
+		}
+	}
+
+	// 3. 根据 stage_action 决定新阶段
 	newStage := currentStage
-	if containsStageAdvanceSignal(text) {
+	switch resp.StageAction {
+	case "advance":
+		// 进入下一阶段
 		newStage = getNextStage(currentStage)
+	case "finish":
+		// 面试结束（保持在 closing 阶段）
+		newStage = domain.StageClosing
+	case "continue":
+		// 继续当前阶段
+		newStage = currentStage
+	default:
+		// 未知动作，保持当前阶段
+		newStage = currentStage
 	}
 
 	return GraphOutput{
-		Text:     text,
-		NewStage: newStage,
-		Context:  make(map[string]any),
+		Text:      resp.Response,
+		AudioData: nil, // TTS 由 Supervisor 调用 Tool 处理
+		NewStage:  newStage,
+		Context:   make(map[string]any),
 	}
 }
 
-// containsStageAdvanceSignal 检查是否包含阶段切换信号
-func containsStageAdvanceSignal(text string) bool {
-	// TODO: 实现更智能的判断逻辑
-	// 当前简化实现：检查关键词
-	keywords := []string{
-		"进入下一阶段",
-		"开始技术问答",
-		"开始算法题",
-		"面试结束",
+// extractJSON 从文本中提取 JSON
+// 处理以下情况：
+// 1. 纯 JSON：{"response": "..."}
+// 2. Markdown 代码块：```json\n{...}\n```
+// 3. 普通代码块：```\n{...}\n```
+func extractJSON(text string) string {
+	text = strings.TrimSpace(text)
+
+	// 情况 1：如果以 { 开头，可能是纯 JSON
+	if strings.HasPrefix(text, "{") {
+		return text
 	}
 
-	for _, keyword := range keywords {
-		if len(text) > 0 && len(keyword) > 0 {
-			// 简化判断
-			return false
+	// 情况 2：包含 ```json ... ```
+	if strings.Contains(text, "```json") {
+		start := strings.Index(text, "```json") + 7
+		end := strings.Index(text[start:], "```")
+		if end > 0 {
+			return strings.TrimSpace(text[start : start+end])
 		}
 	}
-	return false
+
+	// 情况 3：包含 ``` ... ```
+	if strings.Contains(text, "```") {
+		start := strings.Index(text, "```") + 3
+		// 跳过可能的语言标识符（如 json, JSON）
+		if start < len(text) && text[start] != '\n' {
+			newlineIdx := strings.Index(text[start:], "\n")
+			if newlineIdx > 0 {
+				start += newlineIdx + 1
+			}
+		}
+		end := strings.Index(text[start:], "```")
+		if end > 0 {
+			return strings.TrimSpace(text[start : start+end])
+		}
+	}
+
+	// 情况 4：尝试查找 JSON 对象
+	// 查找第一个 { 和最后一个 }
+	startIdx := strings.Index(text, "{")
+	endIdx := strings.LastIndex(text, "}")
+	if startIdx >= 0 && endIdx > startIdx {
+		return strings.TrimSpace(text[startIdx : endIdx+1])
+	}
+
+	// 无法提取，返回原文本
+	return text
 }
 
 // getNextStage 获取下一个阶段

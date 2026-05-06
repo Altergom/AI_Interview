@@ -108,3 +108,107 @@ func TestCallSupervisor_HistoryHandling(t *testing.T) {
 		t.Error("Failed to parse history from context")
 	}
 }
+
+func TestExtractJSON(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "pure json",
+			input: `{"response": "你好", "need_tts": true, "stage_action": "continue"}`,
+			want:  `{"response": "你好", "need_tts": true, "stage_action": "continue"}`,
+		},
+		{
+			name: "json in markdown code block",
+			input: "```json\n" +
+				`{"response": "你好", "need_tts": true, "stage_action": "continue"}` + "\n```",
+			want: `{"response": "你好", "need_tts": true, "stage_action": "continue"}`,
+		},
+		{
+			name: "json in plain code block",
+			input: "```\n" +
+				`{"response": "你好", "need_tts": true, "stage_action": "continue"}` + "\n```",
+			want: `{"response": "你好", "need_tts": true, "stage_action": "continue"}`,
+		},
+		{
+			name:  "json with surrounding text",
+			input: `这是回复：{"response": "你好", "need_tts": true, "stage_action": "continue"} 结束`,
+			want:  `{"response": "你好", "need_tts": true, "stage_action": "continue"}`,
+		},
+		{
+			name:  "no json",
+			input: "这只是普通文本",
+			want:  "这只是普通文本",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractJSON(tt.input)
+			if got != tt.want {
+				t.Errorf("extractJSON() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseSupervisorOutput_JSON(t *testing.T) {
+	tests := []struct {
+		name         string
+		text         string
+		currentStage domain.InterviewStage
+		wantText     string
+		wantStage    domain.InterviewStage
+	}{
+		{
+			name:         "valid json - continue",
+			text:         `{"response": "请介绍一下你自己", "need_tts": true, "stage_action": "continue"}`,
+			currentStage: domain.StageIntro,
+			wantText:     "请介绍一下你自己",
+			wantStage:    domain.StageIntro,
+		},
+		{
+			name:         "valid json - advance",
+			text:         `{"response": "很好，我们进入技术问答", "need_tts": true, "stage_action": "advance"}`,
+			currentStage: domain.StageIntro,
+			wantText:     "很好，我们进入技术问答",
+			wantStage:    domain.StageQuestioning,
+		},
+		{
+			name:         "valid json - finish",
+			text:         `{"response": "感谢参加面试", "need_tts": true, "stage_action": "finish"}`,
+			currentStage: domain.StageClosing,
+			wantText:     "感谢参加面试",
+			wantStage:    domain.StageClosing,
+		},
+		{
+			name: "json in markdown",
+			text: "```json\n" +
+				`{"response": "请介绍一下你自己", "need_tts": true, "stage_action": "continue"}` + "\n```",
+			currentStage: domain.StageIntro,
+			wantText:     "请介绍一下你自己",
+			wantStage:    domain.StageIntro,
+		},
+		{
+			name:         "invalid json - fallback",
+			text:         "这不是 JSON",
+			currentStage: domain.StageQuestioning,
+			wantText:     "这不是 JSON",
+			wantStage:    domain.StageQuestioning,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseSupervisorOutput(tt.text, tt.currentStage)
+			if got.Text != tt.wantText {
+				t.Errorf("parseSupervisorOutput() Text = %v, want %v", got.Text, tt.wantText)
+			}
+			if got.NewStage != tt.wantStage {
+				t.Errorf("parseSupervisorOutput() NewStage = %v, want %v", got.NewStage, tt.wantStage)
+			}
+		})
+	}
+}
