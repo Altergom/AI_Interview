@@ -2,24 +2,35 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // UploadSFTJSONL 上传 SFT 训练数据 JSONL 文件到 S3。
-// 路径: /sft/{date}/{filename}.jsonl
+// 路径: sft/{date}/{filename}.jsonl
 func (c *Client) UploadSFTJSONL(ctx context.Context, t time.Time, filename string, body io.Reader) error {
-	// TODO: 实现 JSONL 上传
-	// 1. 使用 paths.SFTJSONLPrefix() 生成前缀
-	// 2. 拼接 filename
-	// 3. 调用 Upload()，contentType: application/jsonl
-	return nil
+	key := SFTJSONLPrefix(t) + filename + ".jsonl"
+	return c.Upload(ctx, key, body, "application/jsonl")
 }
 
-// ListSFTJSONL 列出指定日期的 JSONL 文件。
+// ListSFTJSONL 列出指定日期的 JSONL 文件 key 列表。
 func (c *Client) ListSFTJSONL(ctx context.Context, t time.Time) ([]string, error) {
-	// TODO: 实现列表查询
-	// 1. 使用 paths.SFTJSONLPrefix() 生成前缀
-	// 2. ListObjectsV2 with prefix
-	return nil, nil
+	prefix := SFTJSONLPrefix(t)
+	out, err := c.s3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(c.bucket),
+		Prefix: aws.String(prefix),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list objects %q: %w", prefix, err)
+	}
+
+	keys := make([]string, 0, len(out.Contents))
+	for _, obj := range out.Contents {
+		keys = append(keys, aws.ToString(obj.Key))
+	}
+	return keys, nil
 }

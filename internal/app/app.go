@@ -11,6 +11,7 @@ import (
 	"ai_interview/internal/service"
 	"ai_interview/internal/storage/postgres"
 	sredis "ai_interview/internal/storage/redis"
+	"ai_interview/internal/storage/s3"
 )
 
 // App 持有所有依赖实例，按顺序初始化。
@@ -18,6 +19,7 @@ type App struct {
 	Server *handler.Server
 	db     *postgres.DB
 	redis  *sredis.Client
+	s3     *s3.Client
 }
 
 // New 按依赖顺序初始化所有组件，返回可运行的 App 实例。
@@ -43,10 +45,23 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("init redis: %w", err)
 	}
 
-	// 3. Session 管理
+	// 3. S3 / OSS
+	s3Client, err := s3.New(ctx, s3.Options{
+		Endpoint:  cfg.S3Endpoint,
+		AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey,
+		Bucket:    cfg.S3Bucket,
+		Region:    cfg.S3Region,
+		UseSSL:    cfg.S3UseSSL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init s3: %w", err)
+	}
+
+	// 4. Session 管理
 	sessionManager := service.NewSessionManager(rdb.Client(), cfg.InterviewStateTTL)
 
-	// 4. AI 层
+	// 5. AI 层
 	supervisor, err := agent.NewSupervisor()
 	if err != nil {
 		return nil, fmt.Errorf("new supervisor: %w", err)
@@ -56,15 +71,15 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("new interview graph: %w", err)
 	}
 
-	// 5. Service 层
+	// 6. Service 层
 	interviewSvc := service.NewInterviewService(sessionManager, graph)
 
-	// 6. HTTP Server
+	// 7. HTTP Server
 	srv := handler.NewServer(cfg, handler.Services{
 		Interview: interviewSvc,
 	})
 
-	return &App{Server: srv, db: db, redis: rdb}, nil
+	return &App{Server: srv, db: db, redis: rdb, s3: s3Client}, nil
 }
 
 // Run 启动服务，阻塞直到服务退出。
