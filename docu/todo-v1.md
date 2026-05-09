@@ -38,8 +38,11 @@
 - [x] 定义 Redis Key 与命名方法（`internal/storage/redis/keys`）
 - [x] 配置合理 TTL（`RESUME_REDIS_TTL` / `INTERVIEW_STATE_TTL`）
 - [x] 定义业务对象路径（简历 / 音频 / 视频 / SFT 前缀）
-- [ ] **PostgreSQL 启用 pgvector**：`CREATE EXTENSION vector` 加到 migrations
-- [ ] migrations 整理：新增 `bank_questions` + `bank_questions_vector` 表（向量列 1024 维，COSINE）
+- [ ] **Milvus 初始化**：Docker Compose 加 Milvus standalone + etcd + minio（或复用已有 MinIO）
+- [ ] 创建 Milvus 集合 `bank_questions_vec`（1024 维，COSINE，IVF_FLAT，nlist=128）
+- [ ] **Elasticsearch 初始化**：Docker Compose 加 ES 单节点（`elasticsearch:8.x`）
+- [ ] 创建 ES 索引 `bank_questions`（mapping：`question` text + `tags` keyword + `difficulty` keyword）
+- [ ] migrations 整理：新增 `bank_questions` 元数据表（不含向量列，仅结构化字段）
 - [ ] PostgreSQL 连接池配置
 - [ ] Redis 连接初始化
 - [ ] S3 客户端配置 + Bucket 权限策略
@@ -105,14 +108,19 @@
 
 ## Tag-RAG 题库（仅供 AI）
 
-> v1 用户感知不到 RAG 存在，pgvector 只是后台基建。用户面经 ChatBot 推到 v3。
+> v1 用户感知不到 RAG 存在，Milvus+ES 多路召回只是后台基建。用户面经 ChatBot 推到 v3。
 
 - [x] 定义 `BankQuestion` 领域类型
-- [ ] 题库表 `bank_questions`：`question` / `standard_answer` / `tags` (jsonb) / `related_concepts` (jsonb) / `followup_question_ids` (jsonb)
-- [ ] 向量表 `bank_questions_vector(question_id, embedding vector(1024))`
+- [ ] 题库元数据表 `bank_questions`（PgSQL）：`question` / `standard_answer` / `tags` (jsonb) / `related_concepts` (jsonb) / `followup_question_ids` (jsonb) / `vec_status` (pending/done/failed)
 - [ ] embedding 服务接入（默认 DashScope `text-embedding-v3`，走 `LlmProviderRegistry`）
-- [ ] 异步向量化：RabbitMQ `vectorize_task` 队列 + Worker
-- [ ] 检索接口：技能标签 + Skill 配置 → Top-K 题目（COSINE 距离）
+- [ ] 异步写入 Worker：题目入库后消费 RabbitMQ `vectorize_task` 队列
+  - 写 Milvus：`bank_questions_vec` 集合，field `question_id`（varchar）+ `embedding`（FloatVector 1024）
+  - 写 ES：索引 `bank_questions`，字段 `question_text` / `tags` / `difficulty`
+  - 成功后更新 PgSQL `vec_status=done`
+- [ ] **多路召回检索接口**：技能标签 + Skill 配置 → Top-K 题目
+  - **向量召回**：Milvus ANN 搜索，nprobe=16，返回 Top-20
+  - **关键词/标签召回**：ES bool query（tags filter + question match），返回 Top-20
+  - **RRF 融合**：`score = Σ 1/(k + rank_i)`，k=60，取融合 Top-K
 - [ ] 题库种子脚本：导入初始 50-100 道题（覆盖 5 个方向）
 
 ---

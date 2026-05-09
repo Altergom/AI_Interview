@@ -62,6 +62,21 @@ type Config struct {
 	TTSModel string // TTS 模型名称
 	TTSVoice string // TTS 音色
 
+	// Milvus 向量数据库
+	MilvusAddr       string // host:port，默认 127.0.0.1:19530
+	MilvusCollection string // 题库向量集合名，默认 bank_questions_vec
+
+	// Elasticsearch
+	ESAddrs    []string // 节点地址列表，逗号分隔
+	ESUsername string
+	ESPassword string
+	ESIndex    string // 题库 ES 索引名，默认 bank_questions
+
+	// Ollama（本地模型，可选）
+	OllamaBaseURL    string // 默认 http://127.0.0.1:11434
+	OllamaEmbedModel string // embedding 模型，默认 nomic-embed-text
+	OllamaChatModel  string // chat 模型，默认 qwen3:8b
+
 	// TTL：可由 RESUME_REDIS_TTL、INTERVIEW_STATE_TTL 等 duration 字符串覆盖
 	ResumeRedisTTL    time.Duration
 	InterviewStateTTL time.Duration

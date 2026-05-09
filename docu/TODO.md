@@ -25,11 +25,13 @@
 - **收益**：首包延迟 200-400ms（对标 Qwen3 实时模型），告别 3-5s 等待
 - **影响**：handler 层重写 / `useAudio.ts` 重写 / `qwen_asr.go` `qwen_tts.go` 改 WebSocket 实现
 
-### 2. 出题数据源：PostgreSQL + pgvector，不引入 Milvus
+### 2. 出题数据源：Milvus + ES 多路召回
 
-- Skill markdown 定义考察范围 + Tag-RAG 检索题库
-- 题库表加 `tags`、`related_concepts`、`followup_question_ids` 字段，模拟知识图谱关联（成本 1/10，收益 90%）
-- 与简历、未来知识库共用同一存储，精简架构
+- Skill markdown 定义考察范围；**向量召回**走 Milvus，**关键词/标签召回**走 Elasticsearch，结果 RRF 融合
+- 题库表保留 `tags`、`related_concepts`、`followup_question_ids`，PgSQL **只存结构化元数据**，不存向量
+- Milvus 集合：`bank_questions_vec`（1024 维，COSINE，IVF_FLAT）
+- ES 索引：`bank_questions`（分词 + 标签 filter）
+- 异步写入：题目入库后由 Worker 同步写 Milvus + ES，PgSQL 只改元数据状态字段
 
 ### 3. 多 Provider：v1 编译期静态、v2 运行时动态
 
@@ -86,12 +88,12 @@ type EvaluationPipeline interface {
 
 - **禁止**在事务内调用 LLM / S3 / WebSocket（占用 DB 连接，长事务风险）
 
-### 11. 用户面经 ChatBot：Tag-RAG，不上知识图谱
+### 11. 用户面经 ChatBot：Milvus + ES 多路召回
 
-- 工程上 KG（Neo4j 等）维护成本 10x，大模型时代 ROI 在下降
-- **方案**：pgvector + tags + related_concepts + followup_question_ids 模拟关联
-- v1 Tag-RAG 仅供 AI 出题/追问使用，**不做用户面经 ChatBot**
-- v3 再做独立面经 ChatBot，复用 v1 的 pgvector 基建
+- **方案**：Milvus（向量语义检索）+ ES（关键词/标签过滤）RRF 融合，PostgreSQL 只存文档元数据和分块元信息
+- 知识库分块 embedding 写 Milvus；文档内容写 ES 全文索引
+- v1 RAG 出题复用同一套 Milvus+ES 基建，不重复造轮子
+- v3 独立面经 ChatBot，增量接入多 KB 关联检索
 
 ---
 

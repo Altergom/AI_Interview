@@ -45,7 +45,7 @@ services:
       - ai-interview-net
 
   # ─────────────────────────────────────────
-  # MinIO（S3 兼容对象存储）
+  # MinIO（S3 兼容对象存储，业务数据）
   # ─────────────────────────────────────────
   minio:
     image: minio/minio:latest
@@ -78,7 +78,8 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 aiinterview aiinterview123;
       mc mb --ignore-existing local/ai-interview;
-      echo 'MinIO bucket initialized';
+      mc mb --ignore-existing local/milvus;
+      echo 'MinIO buckets initialized';
       "
     networks:
       - ai-interview-net
@@ -106,6 +107,112 @@ services:
     networks:
       - ai-interview-net
 
+  # ─────────────────────────────────────────
+  # Milvus（向量数据库）
+  # 依赖：etcd（元数据） + 业务 MinIO（对象存储，milvus bucket）
+  # ─────────────────────────────────────────
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.14
+    container_name: ai-interview-etcd
+    restart: unless-stopped
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"   # 4 GiB
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: >
+      etcd
+      --advertise-client-urls=http://etcd:2379
+      --listen-client-urls=http://0.0.0.0:2379
+      --data-dir=/etcd
+    volumes:
+      - etcd_data:/etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ai-interview-net
+
+  milvus:
+    image: milvusdb/milvus:v2.4.17
+    container_name: ai-interview-milvus
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000                  # 复用业务 MinIO
+      MINIO_ACCESS_KEY_ID: aiinterview
+      MINIO_SECRET_ACCESS_KEY: aiinterview123
+      MINIO_BUCKET_NAME: milvus                  # 独立 bucket，与业务 ai-interview bucket 隔离
+      MINIO_USE_SSL: "false"
+    ports:
+      - "19530:19530"  # gRPC
+      - "9091:9091"    # HTTP/metrics
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully  # bucket 建好再启动
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ai-interview-net
+
+  # ─────────────────────────────────────────
+  # Elasticsearch（关键词 / 标签检索）
+  # ─────────────────────────────────────────
+  elasticsearch:
+    image: elasticsearch:8.13.4
+    container_name: ai-interview-es
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      xpack.security.enabled: "false"   # 本地开发关闭认证；生产环境请开启
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ai-interview-net
+
+  # ─────────────────────────────────────────
+  # Ollama（本地 LLM / embedding，可选）
+  # 不需要本地模型时可注释掉整个服务
+  # ─────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-interview-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # 有 GPU 时取消注释以下 deploy 段
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    networks:
+      - ai-interview-net
+
 # ─────────────────────────────────────────
 # Volumes
 # ─────────────────────────────────────────
@@ -114,6 +221,10 @@ volumes:
   redis_data:
   minio_data:
   rabbitmq_data:
+  etcd_data:
+  milvus_data:
+  es_data:
+  ollama_data:
 
 # ─────────────────────────────────────────
 # Networks

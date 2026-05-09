@@ -70,6 +70,18 @@ func getBool(key string, def bool) (bool, error) {
 	return b, nil
 }
 
+// splitComma 按逗号分割并 trim 空白，用于多地址配置（如 ES_ADDRS）。
+func splitComma(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 func getDurationOrDefault(key string, def time.Duration) (time.Duration, error) {
 	s := strings.TrimSpace(os.Getenv(key))
 	if s == "" {
@@ -159,6 +171,18 @@ func parseFromEnv() (*Config, error) {
 		ASRModel: get("ASR_MODEL", "qwen3-asr-flash-realtime"),
 		TTSModel: get("TTS_MODEL", "qwen-tts-flash-realtime"),
 		TTSVoice: get("TTS_VOICE", "zhifeng_emo"),
+
+		MilvusAddr:       get("MILVUS_ADDR", "127.0.0.1:19530"),
+		MilvusCollection: get("MILVUS_COLLECTION", "bank_questions_vec"),
+
+		ESAddrs:    splitComma(get("ES_ADDRS", "http://127.0.0.1:9200")),
+		ESUsername: get("ES_USERNAME", ""),
+		ESPassword: get("ES_PASSWORD", ""),
+		ESIndex:    get("ES_INDEX", "bank_questions"),
+
+		OllamaBaseURL:    get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+		OllamaEmbedModel: get("OLLAMA_EMBED_MODEL", "nomic-embed-text"),
+		OllamaChatModel:  get("OLLAMA_CHAT_MODEL", "qwen3:8b"),
 
 		ResumeRedisTTL:    resumeTTL,
 		InterviewStateTTL: interviewTTL,
