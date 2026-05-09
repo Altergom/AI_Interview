@@ -7,6 +7,7 @@ import (
 
 	"ai_interview/internal/domain"
 	"ai_interview/internal/log"
+	resumepdf "ai_interview/internal/resume/pdf"
 	s3store "ai_interview/internal/storage/s3"
 )
 
@@ -51,10 +52,32 @@ func (s *resumeService) PresignUpload(ctx context.Context, userID, filename stri
 	return url, key, nil
 }
 
-// Parse 从 S3 下载 PDF → 提取文本 → LLM 结构化解析。
-// TODO(task-2): 实现 PDF 文本提取 + LLM 解析。
+// Parse 从 S3 下载 PDF → 逐页提取文本 → LLM 结构化解析。
+//
+// 当前实现：步骤 1（下载）+ 步骤 2（PDF 文本提取）已完成。
+// TODO(task-3): 步骤 3 LLM 结构化解析（经 StructuredOutputInvoker）。
 func (s *resumeService) Parse(ctx context.Context, userID, objectKey string) (*domain.StructuredResume, error) {
-	return nil, fmt.Errorf("not implemented")
+	// 步骤 1：从 S3 下载 PDF
+	rc, err := s.s3.Download(ctx, objectKey)
+	if err != nil {
+		log.Errorf("[ResumeService] download pdf from S3 key=%s: %v", objectKey, err)
+		return nil, fmt.Errorf("download pdf: %w", err)
+	}
+	defer rc.Close()
+
+	// 步骤 2：逐页提取文本（内置 3MB 大小限制，超出返回 ErrFileTooLarge）
+	text, err := resumepdf.ExtractText(rc)
+	if err != nil {
+		log.Errorf("[ResumeService] extract text from pdf key=%s: %v", objectKey, err)
+		return nil, fmt.Errorf("extract pdf text: %w", err)
+	}
+
+	log.Infof("[ResumeService] pdf text extracted, key=%s, length=%d chars", objectKey, len(text))
+
+	// 步骤 3：LLM 结构化解析（下一个任务实现）
+	// 当前返回包含原始文本的占位结果，确保后续任务可以接入
+	_ = text // 文本已提取，等待 LLM 解析接入
+	return nil, fmt.Errorf("LLM parsing not yet implemented (text extracted: %d chars)", len(text))
 }
 
 // Submit 保存用户确认后的简历。
