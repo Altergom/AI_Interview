@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"ai_interview/internal/log"
-	"ai_interview/internal/middleware"
 	"context"
 	"net/http"
 
@@ -10,6 +8,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 
 	"ai_interview/internal/config"
+	"ai_interview/internal/log"
 	"ai_interview/internal/service"
 )
 
@@ -31,7 +30,6 @@ type Server struct {
 // NewServer 创建并配置好服务实例，注册所有路由。
 func NewServer(cfg *config.Config, svc Services) *Server {
 	h := server.Default(server.WithHostPorts(cfg.HTTPAddr))
-	h.Use(middleware.Recovery()) // 全局 panic 恢复
 	newRouter(svc).register(h)
 	return &Server{h: h}
 }
