@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"ai_interview/internal/auth"
 	"ai_interview/internal/config"
 	"ai_interview/internal/einocore/agent"
 	"ai_interview/internal/einocore/compose"
@@ -115,11 +116,19 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// 8. Service 层
+	userRepo := postgres.NewUserRepo(db.Conn())
+	jwtCfg := auth.TokenConfig{
+		Secret:    cfg.JWTSecret,
+		Issuer:    cfg.JWTIssuer,
+		ExpMinute: cfg.JWTAccessExpMin,
+	}
+	authSvc := service.NewAuthService(userRepo, jwtCfg)
 	resumeSvc := service.NewResumeService(s3Client)
 	interviewSvc := service.NewInterviewService(sessionManager, graph)
 
 	// 9. HTTP Server
 	srv := handler.NewServer(cfg, handler.Services{
+		Auth:      authSvc,
 		Resume:    resumeSvc,
 		Interview: interviewSvc,
 	})

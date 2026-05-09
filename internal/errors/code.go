@@ -14,6 +14,11 @@ const (
 	CodeNotFound     ErrorCode = 1404
 	CodeInternal     ErrorCode = 1500
 
+	// ─── 用户与认证 11xx ──────────────────────────────────────────
+	CodeEmailRegistered ErrorCode = 1101
+	CodeUserNotFound    ErrorCode = 1102
+	CodeWrongPassword   ErrorCode = 1103
+
 	// ─── 简历 2xxx ────────────────────────────────────────────────
 	CodeResumeNotFound    ErrorCode = 2001
 	CodeResumeParseFailed ErrorCode = 2002
@@ -60,6 +65,10 @@ var defaultMessages = map[ErrorCode]string{
 	CodeForbidden:    "无权限",
 	CodeNotFound:     "资源不存在",
 	CodeInternal:     "服务内部错误",
+
+	CodeEmailRegistered: "邮箱已注册",
+	CodeUserNotFound:    "用户不存在",
+	CodeWrongPassword:   "密码错误",
 
 	CodeResumeNotFound:    "简历不存在",
 	CodeResumeParseFailed: "简历解析失败",
