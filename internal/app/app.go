@@ -37,9 +37,14 @@ func New(cfg *config.Config) (*App, error) {
 
 	// 2. Redis
 	rdb, err := sredis.New(ctx, sredis.Options{
-		Addr:     cfg.RedisAddr,
-		Password: cfg.RedisPassword,
-		DB:       cfg.RedisDB,
+		Addr:         cfg.RedisAddr,
+		Password:     cfg.RedisPassword,
+		DB:           cfg.RedisDB,
+		PoolSize:     cfg.RedisPoolSize,
+		MinIdleConns: cfg.RedisMinIdleConns,
+		DialTimeout:  cfg.RedisDialTimeout,
+		ReadTimeout:  cfg.RedisReadTimeout,
+		WriteTimeout: cfg.RedisWriteTimeout,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init redis: %w", err)
