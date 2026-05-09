@@ -48,7 +48,22 @@ func (h *authHandler) Register(ctx context.Context, c *app.RequestContext) {
 
 // Login POST /v1/auth/login
 func (h *authHandler) Login(ctx context.Context, c *app.RequestContext) {
-	panic("not implemented")
+	var req loginReq
+	if err := c.BindJSON(&req); err != nil {
+		Fail(ctx, c, http.StatusBadRequest, biz.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	result, err := h.svc.Login(ctx, service.LoginRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	if err != nil {
+		HandleErr(ctx, c, err)
+		return
+	}
+
+	OK(ctx, c, result)
 }
 
 // Guest POST /v1/auth/guest

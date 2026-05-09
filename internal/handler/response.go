@@ -74,7 +74,7 @@ func HandleErr(ctx context.Context, c *app.RequestContext, err error) {
 // bizHTTPStatus 将 ErrorCode 映射到 HTTP 状态码。
 func bizHTTPStatus(code biz.ErrorCode) int {
 	switch code {
-	case biz.CodeUnauthorized:
+	case biz.CodeUnauthorized, biz.CodeWrongPassword:
 		return http.StatusUnauthorized
 	case biz.CodeForbidden:
 		return http.StatusForbidden

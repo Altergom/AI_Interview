@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+// UserRepository 定义 users 表读写接口，便于 service 层测试 mock。
+type UserRepository interface {
+	FindByEmail(ctx context.Context, email string) (*UserRow, error)
+	FindByID(ctx context.Context, id string) (*UserRow, error)
+	Create(ctx context.Context, u UserRow) (string, error)
+}
+
 // UserRow 对应 users 表一行。
 type UserRow struct {
 	ID           string

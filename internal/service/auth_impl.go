@@ -13,12 +13,12 @@ import (
 )
 
 type authService struct {
-	users  *postgres.UserRepo
+	users  postgres.UserRepository
 	jwtCfg auth.TokenConfig
 }
 
 // NewAuthService 创建 AuthService 实现。
-func NewAuthService(users *postgres.UserRepo, jwtCfg auth.TokenConfig) AuthService {
+func NewAuthService(users postgres.UserRepository, jwtCfg auth.TokenConfig) AuthService {
 	return &authService{users: users, jwtCfg: jwtCfg}
 }
 
@@ -72,9 +72,41 @@ func (s *authService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	return &AuthResult{UserID: id, Username: username, Token: token}, nil
 }
 
-// Login 留 stub，Task 5 实现。
+// Login 查用户 → 验密码 → 签发 JWT。
 func (s *authService) Login(ctx context.Context, req LoginRequest) (*AuthResult, error) {
-	return nil, biz.NewMsg(biz.CodeInternal, "not implemented")
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	if email == "" {
+		return nil, biz.NewMsg(biz.CodeBadRequest, "邮箱不能为空")
+	}
+
+	// 查用户
+	user, err := s.users.FindByEmail(ctx, email)
+	if errors.Is(err, postgres.ErrUserNotFound) {
+		// 不区分"用户不存在"和"密码错误"，防止用户枚举
+		return nil, biz.New(biz.CodeWrongPassword)
+	}
+	if err != nil {
+		return nil, biz.Wrap(biz.CodeInternal, fmt.Errorf("find user: %w", err))
+	}
+
+	// 游客账号不允许密码登录
+	if user.IsGuest {
+		return nil, biz.NewMsg(biz.CodeBadRequest, "游客账号不支持密码登录")
+	}
+
+	// 验密码
+	if err := auth.ComparePassword(user.PasswordHash, req.Password); err != nil {
+		return nil, biz.New(biz.CodeWrongPassword)
+	}
+
+	// 签发 JWT
+	token, err := auth.GenerateToken(s.jwtCfg, user.ID, false)
+	if err != nil {
+		return nil, biz.Wrap(biz.CodeInternal, err)
+	}
+
+	log.Infof("[AuthService] login user %s email=%s", user.ID, email)
+	return &AuthResult{UserID: user.ID, Username: user.Username, Token: token}, nil
 }
 
 // CreateGuest 留 stub，Task 6 实现。
