@@ -71,13 +71,15 @@ redis.call('EXPIRE', key, ttl)
 return 0
 `)
 
-// rateLimiter 持有 Redis 客户端，执行限流判断。
-type rateLimiter struct {
+// Limiter 持有 Redis 客户端，执行限流判断。
+// 导出供 WebSocket handler 等非中间件场景直接调用。
+type Limiter struct {
 	rdb     *redis.Client
 	configs map[Dimension]Config
 }
 
-func newRateLimiter(rdb *redis.Client, overrides map[Dimension]Config) *rateLimiter {
+// NewLimiter 创建 Limiter，overrides 为空则使用默认配置。
+func NewLimiter(rdb *redis.Client, overrides map[Dimension]Config) *Limiter {
 	configs := make(map[Dimension]Config)
 	for k, v := range defaultConfigs {
 		configs[k] = v
@@ -85,11 +87,23 @@ func newRateLimiter(rdb *redis.Client, overrides map[Dimension]Config) *rateLimi
 	for k, v := range overrides {
 		configs[k] = v
 	}
-	return &rateLimiter{rdb: rdb, configs: configs}
+	return &Limiter{rdb: rdb, configs: configs}
+}
+
+// rateLimiter 内部使用，复用 Limiter 逻辑。
+type rateLimiter = Limiter
+
+func newRateLimiter(rdb *redis.Client, overrides map[Dimension]Config) *rateLimiter {
+	return NewLimiter(rdb, overrides)
+}
+
+// Allow 返回 true 表示允许通过，false 表示触发限流（导出版本）。
+func (r *Limiter) Allow(ctx context.Context, handler string, dim Dimension, value string) bool {
+	return r.allow(ctx, handler, dim, value)
 }
 
 // allow 返回 true 表示允许通过，false 表示触发限流。
-func (r *rateLimiter) allow(ctx context.Context, handler string, dim Dimension, value string) bool {
+func (r *Limiter) allow(ctx context.Context, handler string, dim Dimension, value string) bool {
 	cfg, ok := r.configs[dim]
 	if !ok {
 		return true // 未配置的维度放行

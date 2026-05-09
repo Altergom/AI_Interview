@@ -98,9 +98,9 @@
 
 > 对标 interview-guide：`SKILL.md` 文件驱动出题，比 RAG 题库维护成本低。
 
-- [ ] 创建目录 `internal/skills/{direction}/SKILL.md`，v1 至少覆盖 5 个方向：
+- [x] 创建目录 `internal/skills/{direction}/SKILL.md`，v1 至少覆盖 5 个方向：
   - `go-backend` / `java-backend` / `frontend` / `algorithm` / `ai-agent`
-- [ ] 每个 SKILL.md 包含：考察范围、难度分布、追问策略、引用资料路径
+- [x] 每个 SKILL.md 包含：考察范围、难度分布、追问策略、引用资料路径
 - [ ] `SkillLoader`：启动加载 + 文件 hot-reload（不重启服务可迭代提示词）
 - [ ] 历史题目跨 turn 去重：Redis Set `interview:{id}:asked_questions`
 
@@ -111,17 +111,17 @@
 > v1 用户感知不到 RAG 存在，Milvus+ES 多路召回只是后台基建。用户面经 ChatBot 推到 v3。
 
 - [x] 定义 `BankQuestion` 领域类型
-- [ ] 题库元数据表 `bank_questions`（PgSQL）：`question` / `standard_answer` / `tags` (jsonb) / `related_concepts` (jsonb) / `followup_question_ids` (jsonb) / `vec_status` (pending/done/failed)
-- [ ] embedding 服务接入（默认 DashScope `text-embedding-v3`，走 `LlmProviderRegistry`）
-- [ ] 异步写入 Worker：题目入库后消费 RabbitMQ `vectorize_task` 队列
+- [x] 题库元数据表 `bank_questions`（PgSQL）：`question` / `standard_answer` / `tags` (jsonb) / `related_concepts` (jsonb) / `followup_question_ids` (jsonb) / `vec_status` (pending/done/failed)
+- [x] embedding 服务接入（默认 DashScope `text-embedding-v3`，走 `LlmProviderRegistry`）
+- [x] 异步写入 Worker：题目入库后消费 RabbitMQ `vectorize_task` 队列
   - 写 Milvus：`bank_questions_vec` 集合，field `question_id`（varchar）+ `embedding`（FloatVector 1024）
   - 写 ES：索引 `bank_questions`，字段 `question_text` / `tags` / `difficulty`
   - 成功后更新 PgSQL `vec_status=done`
-- [ ] **多路召回检索接口**：技能标签 + Skill 配置 → Top-K 题目
+- [x] **多路召回检索接口**：技能标签 + Skill 配置 → Top-K 题目
   - **向量召回**：Milvus ANN 搜索，nprobe=16，返回 Top-20
   - **关键词/标签召回**：ES bool query（tags filter + question match），返回 Top-20
   - **RRF 融合**：`score = Σ 1/(k + rank_i)`，k=60，取融合 Top-K
-- [ ] 题库种子脚本：导入初始 50-100 道题（覆盖 5 个方向）
+- [x] 题库种子脚本：导入初始 50-100 道题（覆盖 5 个方向）
 
 ---
 
@@ -129,15 +129,15 @@
 
 > 替换原 SSE 设计。前端流式 PCM，服务端流式 ASR/LLM/TTS。
 
-- [ ] 后端 Hertz WS 端点 `GET /v1/interview/ws/{interview_id}`
-- [ ] **上行消息**：`audio_chunk` (PCM bytes) / `control` (start/pause/resume/stop) / `code_submit`
-- [ ] **下行消息**：`asr_partial` / `asr_final` / `llm_token` / `tts_audio` / `stage_change` / `error`
-- [ ] 前端 AudioWorklet 实时采集 PCM (16kHz / 16bit / mono) 流式发送
-- [ ] 客户端 AEC：`echoCancellation: true` + `noiseSuppression: true` + `autoGainControl: true`
-- [ ] 服务端推送 PCM 用 Web Audio API 流式播放（边收边播）
-- [ ] UI 提示「建议佩戴耳机」（在准备页 + 面试中）
-- [ ] WebSocket 鉴权：握手时校验 JWT
-- [ ] 限流：建立连接维度限流（IP+USER）
+- [x] 后端 Hertz WS 端点 `GET /v1/interview/ws/{interview_id}`
+- [x] **上行消息**：`audio_chunk` (PCM bytes) / `control` (start/pause/resume/stop) / `code_submit`
+- [x] **下行消息**：`asr_partial` / `asr_final` / `llm_token` / `tts_audio` / `stage_change` / `error`
+- [x] 前端 AudioWorklet 实时采集 PCM (16kHz / 16bit / mono) 流式发送
+- [x] 客户端 AEC：`echoCancellation: true` + `noiseSuppression: true` + `autoGainControl: true`
+- [x] 服务端推送 PCM 用 Web Audio API 流式播放（边收边播）
+- [x] UI 提示「建议佩戴耳机」（在准备页 + 面试中）
+- [x] WebSocket 鉴权：握手时校验 JWT
+- [x] 限流：建立连接维度限流（IP+USER）
 
 ---
 
@@ -164,16 +164,16 @@
 
 - [x] Eino 依赖、`compose` 恒等链占位、SFT→`schema.Message` 桥接
 - [x] Supervisor / stage_manager / question_selector / response_analyzer 骨架
-- [ ] LLM 流式输出（首 token 即触发 TTS）
-- [ ] 多轮对话 history：Redis List 存 + 超长裁剪（保留 system + 最近 N 轮）
-- [ ] 阶段切换状态机：`intro → questioning → closing → end`（algorithm 阶段在 v2）
+- [x] LLM 流式输出（首 token 即触发 TTS）
+- [x] 多轮对话 history：Redis List 存 + 超长裁剪（保留 system + 最近 N 轮）
+- [x] 阶段切换状态机：`intro → questioning → closing → end`（algorithm 阶段在 v2）
 - [ ] 题目状态机：出题 → 等答 → 追问（< N）→ 关闭 → RAG 下题
 - [ ] 简历上下文注入到 system prompt
-- [ ] 设计提问阶段 system prompt（面试官角色、追问参考 `followup_question_ids`）
-- [ ] 设计反问阶段 system prompt（候选人反问公司）
+- [x] 设计提问阶段 system prompt（面试官角色、追问参考 `followup_question_ids`）
+- [x] 设计反问阶段 system prompt（候选人反问公司）
 - [ ] **Router**：从 Redis 读状态 → 阶段判断 → 路由到对应 Agent
 - [ ] **信息提取 Agent**：自我介绍补充提取 → merge 进 Redis 上下文
-- [ ] Redis 状态读写封装（`internal/storage/redis`）
+- [x] Redis 状态读写封装（`internal/storage/redis`）
   - 面试状态、对话 history、面试配置
 - [ ] 面试状态结构补 `report_status` 字段：
 
@@ -234,20 +234,20 @@
 
 ## 前端基础页面
 
-- [ ] Index 首页：「登录/注册」+ 「游客体验」入口
-- [ ] 登录 / 注册页
-- [ ] 简历信息页：表单填写 + PDF 上传自动填充 + 解析失败显示空表单
-- [ ] 岗位选择页（Go / Java / 前端 / 算法 / AI Agent）
-- [ ] 方向选择页（软件开发 / 云平台运维 / Agent 开发等）
-- [ ] 准备页：麦克风测试 + AEC 启用提示 + 「建议佩戴耳机」横幅
-- [ ] 设备权限异常处理（拒绝授权、设备不存在）
-- [ ] 面试间页：左侧对话记录 + 顶部阶段进度（**WebSocket 客户端替代 SSE**）
-- [ ] 报告生成等待页（轮询 `report_status`）
-- [ ] 报告页：网页版多维度雷达图 + 优劣势总结（**PDF 导出推 v2**）
-- [ ] 问卷页：逐轮 good/bad + 反馈
-- [ ] 结束页：「再来一次」+ 报告链接
-- [ ] 雷达图组件（recharts 或 echarts）
-- [ ] 全局 Toast：限流 / 错误码统一展示
+- [x] Index 首页：「登录/注册」+ 「游客体验」入口
+- [x] 登录 / 注册页
+- [x] 简历信息页：表单填写 + PDF 上传自动填充 + 解析失败显示空表单
+- [x] 岗位选择页（Go / Java / 前端 / 算法 / AI Agent）
+- [x] 方向选择页（软件开发 / 云平台运维 / Agent 开发等）
+- [x] 准备页：麦克风测试 + AEC 启用提示 + 「建议佩戴耳机」横幅
+- [x] 设备权限异常处理（拒绝授权、设备不存在）
+- [x] 面试间页：左侧对话记录 + 顶部阶段进度（**WebSocket 客户端替代 SSE**）
+- [x] 报告生成等待页（轮询 `report_status`）
+- [x] 报告页：网页版多维度雷达图 + 优劣势总结（**PDF 导出推 v2**）
+- [x] 问卷页：逐轮 good/bad + 反馈
+- [x] 结束页：「再来一次」+ 报告链接
+- [x] 雷达图组件（recharts 或 echarts）
+- [x] 全局 Toast：限流 / 错误码统一展示
 
 ---
 

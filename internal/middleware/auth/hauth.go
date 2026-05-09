@@ -11,6 +11,22 @@ import (
 	biz "ai_interview/internal/errors"
 )
 
+// ctxKey 防止 context key 冲突的私有类型。
+type ctxKey string
+
+const ctxUserIDKey ctxKey = "user_id"
+
+// WithUserID 将 userID 注入标准 context（供 WebSocket handler 向 service 层传递）。
+func WithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, ctxUserIDKey, userID)
+}
+
+// UserIDFromContext 从标准 context 中读取 userID（由 WithUserID 注入）。
+func UserIDFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(ctxUserIDKey).(string)
+	return v
+}
+
 // Context key 常量，供 handler/service 层读取。
 // 与 ratelimit 中间件约定的 "user_id" 保持一致。
 const (
