@@ -43,24 +43,28 @@
 
 ## 用户面经 ChatBot
 
-> 复用 v1 的 pgvector 基建。**独立模块**，跟核心面试解耦。
+> 复用 v1 的 Milvus+ES 基建。**独立模块**，跟核心面试解耦。
 
 ### 知识库管理（用户侧）
 
-- [ ] PostgreSQL `knowledge_bases` 表（用户的私有 KB）
+- [ ] PostgreSQL `knowledge_bases` 表（用户的私有 KB，只存元数据）
   - id / user_id / name / description / status / created_at
 - [ ] 文档表 `kb_documents`：`kb_id / file_name / mime_type / s3_key / chunk_count / status`
-- [ ] 文档分块表 `kb_chunks`：`document_id / content / embedding (vector 1024) / chunk_index`
+- [ ] 分块元数据表 `kb_chunks`（PgSQL）：`document_id / chunk_index / token_count / vec_status`（**不存 embedding，向量在 Milvus**）
+- [ ] Milvus 集合 `kb_chunks_vec`：field `chunk_id`（varchar）+ `embedding`（FloatVector 1024）
+- [ ] ES 索引 `kb_chunks`：`chunk_id / kb_id / content / document_id`
 - [ ] 文件上传 API（PDF / DOCX / Markdown / TXT）
 - [ ] 异步分块 + 向量化（RabbitMQ `kb_vectorize` 队列 + Worker，复用 v1 基建）
+  - 分块写 Milvus `kb_chunks_vec` + ES `kb_chunks`，完成后更新 PgSQL `vec_status`
 - [ ] 错误码：`KNOWLEDGE_BASE_NOT_FOUND(6001)` / `VECTOR_INDEX_FAILED(6002)`
 
 ### RAG 问答
 
 - [ ] **查询改写**（先让 LLM 把用户提问优化成检索 query）
-- [ ] 相似度阈值 + TopK 策略（默认 K=5，阈值 0.6）
+- [ ] **多路召回**：Milvus 向量召回 Top-30 + ES 关键词召回 Top-30 → 粗排 → 精排 → Top-K（默认 K=5）
+- [ ] 相似度阈值过滤（向量 COSINE ≥ 0.6）
 - [ ] **SSE 流式问答** + 打字机效果
-- [ ] 多 KB 关联（同时检索多个知识库）
+- [ ] 多 KB 关联（同时检索多个知识库，Milvus partition_key 隔离）
 - [ ] 引用来源回显（点击可跳到原文片段）
 
 ### 会话管理
@@ -125,7 +129,7 @@
 > v1/v2 主要靠单元测试 + miniredis。v3 补完整集成测试。
 
 - [ ] 引入 `testcontainers-go`
-- [ ] 自动起依赖：PostgreSQL（含 pgvector）/ Redis / RabbitMQ / MinIO
+- [ ] 自动起依赖：PostgreSQL / Redis / RabbitMQ / MinIO / Milvus / Elasticsearch
 - [ ] 关键 Service 集成测试覆盖：
   - 简历解析（PDF → LLM → DB）
   - 面试创建到结束完整链路
