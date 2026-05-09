@@ -60,9 +60,23 @@ export const DeviceCheck = () => {
     <Container showHeader>
       <div className="max-w-4xl mx-auto py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">设备检测</h1>
-        <p className="text-gray-600 mb-8">
+        <p className="text-gray-600 mb-4">
           请确保您的麦克风和摄像头工作正常
         </p>
+
+        {/* 耳机提示横幅 */}
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M15.536 8.464a5 5 0 010 7.072M12 6a7 7 0 017 7v1a2 2 0 01-2 2h-1a2 2 0 01-2-2v-2a2 2 0 012-2h.93A7.001 7.001 0 005 13v1a2 2 0 01-2 2h-1a2 2 0 01-2-2v-2a2 2 0 012-2H3a7 7 0 017-7z" />
+          </svg>
+          <div>
+            <p className="text-amber-800 font-medium">建议佩戴耳机</p>
+            <p className="text-amber-700 text-sm mt-0.5">
+              无耳机时 AI 语音可能被麦克风拾取，影响识别准确度。已启用客户端回声消除（AEC），但耳机效果更佳。
+            </p>
+          </div>
+        </div>
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
