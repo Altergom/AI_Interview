@@ -101,8 +101,8 @@
 - [x] 创建目录 `internal/skills/{direction}/SKILL.md`，v1 至少覆盖 5 个方向：
   - `go-backend` / `java-backend` / `frontend` / `algorithm` / `ai-agent`
 - [x] 每个 SKILL.md 包含：考察范围、难度分布、追问策略、引用资料路径
-- [ ] `SkillLoader`：启动加载 + 文件 hot-reload（不重启服务可迭代提示词）
-- [ ] 历史题目跨 turn 去重：Redis Set `interview:{id}:asked_questions`
+- [x] `SkillLoader`：启动加载 + 文件 hot-reload（不重启服务可迭代提示词）
+- [x] 历史题目跨 turn 去重：Redis Set `interview:{id}:asked_questions`
 
 ---
 
