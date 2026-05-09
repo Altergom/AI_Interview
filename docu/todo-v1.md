@@ -38,15 +38,15 @@
 - [x] 定义 Redis Key 与命名方法（`internal/storage/redis/keys`）
 - [x] 配置合理 TTL（`RESUME_REDIS_TTL` / `INTERVIEW_STATE_TTL`）
 - [x] 定义业务对象路径（简历 / 音频 / 视频 / SFT 前缀）
-- [ ] **Milvus 初始化**：Docker Compose 加 Milvus standalone + etcd + minio（或复用已有 MinIO）
-- [ ] 创建 Milvus 集合 `bank_questions_vec`（1024 维，COSINE，IVF_FLAT，nlist=128）
-- [ ] **Elasticsearch 初始化**：Docker Compose 加 ES 单节点（`elasticsearch:8.x`）
-- [ ] 创建 ES 索引 `bank_questions`（mapping：`question` text + `tags` keyword + `difficulty` keyword）
-- [ ] migrations 整理：新增 `bank_questions` 元数据表（不含向量列，仅结构化字段）
+- [x] **Milvus 初始化**：Docker Compose 加 Milvus standalone + etcd + minio（或复用已有 MinIO）
+- [x] 创建 Milvus 集合 `bank_questions_vec`（1024 维，COSINE，IVF_FLAT，nlist=128）
+- [x] **Elasticsearch 初始化**：Docker Compose 加 ES 单节点（`elasticsearch:8.x`）
+- [x] 创建 ES 索引 `bank_questions`（mapping：`question` text + `tags` keyword + `difficulty` keyword）
+- [x] migrations 整理：新增 `bank_questions` 元数据表（不含向量列，仅结构化字段）
 - [ ] PostgreSQL 连接池配置
 - [ ] Redis 连接初始化
-- [ ] S3 客户端配置 + Bucket 权限策略
-- [ ] LlmProviderRegistry 骨架（v1 仅编译期静态配置，从 `.env` 读）
+- [x] S3 客户端配置 + Bucket 权限策略
+- [x] LlmProviderRegistry 骨架（v1 仅编译期静态配置，从 `.env` 读）
 
 ---
 
