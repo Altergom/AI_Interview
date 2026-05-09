@@ -123,7 +123,8 @@ func New(cfg *config.Config) (*App, error) {
 		ExpMinute: cfg.JWTAccessExpMin,
 	}
 	authSvc := service.NewAuthService(userRepo, jwtCfg)
-	resumeSvc := service.NewResumeService(s3Client)
+	resumeRepo := postgres.NewResumeRepository(db.Conn())
+	resumeSvc := service.NewResumeService(s3Client, resumeRepo, rdb, cfg)
 	interviewSvc := service.NewInterviewService(sessionManager, graph)
 
 	// 9. HTTP Server
