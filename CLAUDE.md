@@ -132,7 +132,7 @@ test(user): 补充 userService 单元测试
 
 ## 日志规范
 
-- 统一使用 `ai_interview/internal/infra/log` 包，禁止直接使用 `hlog` 或 `slog`
+- 统一使用 `ai_interview/internal/log` 包，禁止直接使用 `hlog` 或 `slog`
 - 格式：`[组件名] 动作: 具体信息`
   ```go
   log.Infof("[Redis] connected")
