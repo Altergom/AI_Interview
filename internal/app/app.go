@@ -8,6 +8,7 @@ import (
 	"ai_interview/internal/einocore/agent"
 	"ai_interview/internal/einocore/compose"
 	"ai_interview/internal/handler"
+	"ai_interview/internal/llm"
 	"ai_interview/internal/service"
 	"ai_interview/internal/storage/es"
 	"ai_interview/internal/storage/milvus"
@@ -31,7 +32,13 @@ func New(cfg *config.Config) (*App, error) {
 	ctx := context.Background()
 
 	// 1. PostgreSQL
-	db, err := postgres.New(ctx, cfg.PostgresDSN)
+	db, err := postgres.New(ctx, postgres.Options{
+		DSN:             cfg.PostgresDSN,
+		MaxOpenConns:    cfg.PGMaxOpenConns,
+		MaxIdleConns:    cfg.PGMaxIdleConns,
+		ConnMaxLifetime: cfg.PGConnMaxLifetime,
+		ConnMaxIdleTime: cfg.PGConnMaxIdleTime,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
@@ -128,4 +135,5 @@ func (a *App) Shutdown() {
 	a.Server.Shutdown()
 	a.redis.Close()
 	a.db.Close()
+	a.milvus.Close()
 }

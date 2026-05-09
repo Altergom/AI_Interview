@@ -32,7 +32,7 @@ func Load(envFiles ...string) error {
 
 	Cfg, err = parseFromEnv()
 	if err != nil {
-		return fmt.Errorf("[load]config", "err", err)
+		return fmt.Errorf("[config] load: %w", err)
 	}
 
 	return nil
@@ -109,6 +109,46 @@ func parseFromEnv() (*Config, error) {
 		return nil, err
 	}
 
+	// PostgreSQL 连接池
+	pgMaxOpen, err := getInt("PG_MAX_OPEN_CONNS", 25)
+	if err != nil {
+		return nil, err
+	}
+	pgMaxIdle, err := getInt("PG_MAX_IDLE_CONNS", 5)
+	if err != nil {
+		return nil, err
+	}
+	pgConnMaxLifetime, err := getDurationOrDefault("PG_CONN_MAX_LIFETIME", 30*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	pgConnMaxIdleTime, err := getDurationOrDefault("PG_CONN_MAX_IDLE_TIME", 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	// Redis 连接池
+	redisPoolSize, err := getInt("REDIS_POOL_SIZE", 10)
+	if err != nil {
+		return nil, err
+	}
+	redisMinIdleConns, err := getInt("REDIS_MIN_IDLE_CONNS", 2)
+	if err != nil {
+		return nil, err
+	}
+	redisDialTimeout, err := getDurationOrDefault("REDIS_DIAL_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	redisReadTimeout, err := getDurationOrDefault("REDIS_READ_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	redisWriteTimeout, err := getDurationOrDefault("REDIS_WRITE_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
 	accessMin, err := getInt("JWT_ACCESS_EXP_MIN", 60)
 	if err != nil {
 		return nil, err
@@ -125,11 +165,15 @@ func parseFromEnv() (*Config, error) {
 	}
 
 	return &Config{
-		Env:         get("APP_ENV", "development"),
-		LogLevel:    get("LOG_LEVEL", "info"),
-		LogFormat:   logFormat,
-		HTTPAddr:    get("HTTP_ADDR", ":8080"),
-		PostgresDSN: get("POSTGRES_DSN", ""),
+		Env:               get("APP_ENV", "development"),
+		LogLevel:          get("LOG_LEVEL", "info"),
+		LogFormat:         logFormat,
+		HTTPAddr:          get("HTTP_ADDR", ":8080"),
+		PostgresDSN:       get("POSTGRES_DSN", ""),
+		PGMaxOpenConns:    pgMaxOpen,
+		PGMaxIdleConns:    pgMaxIdle,
+		PGConnMaxLifetime: pgConnMaxLifetime,
+		PGConnMaxIdleTime: pgConnMaxIdleTime,
 
 		RedisAddr:         get("REDIS_ADDR", "127.0.0.1:6379"),
 		RedisPassword:     get("REDIS_PASSWORD", ""),

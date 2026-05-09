@@ -12,7 +12,11 @@ type Config struct {
 	HTTPAddr string
 
 	// PostgreSQL
-	PostgresDSN string
+	PostgresDSN       string
+	PGMaxOpenConns    int           // 最大打开连接数，默认 25
+	PGMaxIdleConns    int           // 最大空闲连接数，默认 5
+	PGConnMaxLifetime time.Duration // 连接最大存活时间，默认 30m
+	PGConnMaxIdleTime time.Duration // 连接最大空闲时间，默认 5m
 
 	// Redis
 	RedisAddr         string
