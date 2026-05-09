@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	resumePresignTTL = 5 * time.Minute // 预签名 URL 有效期
-	resumeRedisTTL   = 1 * time.Hour   // Redis 缓存 TTL（按需覆盖 config 值）
+	resumePresignTTL    = 5 * time.Minute // 预签名 URL 有效期
+	resumeRedisTTL      = 1 * time.Hour   // Redis 缓存 TTL
+	resumeMaxConcurrent = 5               // 最大并发解析数（PDF 提取 + LLM 均为 CPU/IO 密集）
 )
 
 // resumeParseSystemPrompt 简历解析系统提示词。
@@ -63,6 +64,8 @@ type resumeService struct {
 	db  *pgstore.ResumeRepository
 	rdb *redistore.Client
 	cfg *config.Config
+	// sem 信号量：限制最多 resumeMaxConcurrent 个并发解析（PDF 提取 + LLM）
+	sem chan struct{}
 }
 
 // NewResumeService 构造 ResumeService 实例。
@@ -77,10 +80,12 @@ func NewResumeService(
 		db:  repo,
 		rdb: rdb,
 		cfg: cfg,
+		sem: make(chan struct{}, resumeMaxConcurrent),
 	}
 }
 
 // PresignUpload 生成简历 PDF 直传 S3 的预签名 PUT URL（5 分钟有效）。
+// 前端拿到 URL 后直接 PUT 文件，PDF 原始文件保存在 S3 的 objectKey 路径下。
 func (s *resumeService) PresignUpload(ctx context.Context, userID, filename string) (uploadURL, objectKey string, err error) {
 	key := s3store.ResumeObjectKey(userID, filename)
 
@@ -96,10 +101,26 @@ func (s *resumeService) PresignUpload(ctx context.Context, userID, filename stri
 
 // Parse 从 S3 下载 PDF → 提取文本 → SHA-256 去重 → LLM 结构化解析。
 //
+// 并发控制：信号量限制最多 resumeMaxConcurrent(5) 个并发解析，
+// 超过则阻塞等待，不返回错误（由调用超时控制）。
+//
+// 大小限制：PDF 提取阶段内置 3MB 硬限（io.LimitReader）。
+//
+// PDF 备份：原始文件通过预签名 URL 由前端直传 S3，objectKey 落库到 resumes.s3_key，
+// 后续可通过 PresignGetURL(objectKey) 追溯原始文件。
+//
 // 去重路径：content_hash 命中 PG → 直接返回已解析结果，跳过 LLM 调用。
 // 降级路径：LLM 多次失败 → 返回空结构体，不阻塞前端。
 func (s *resumeService) Parse(ctx context.Context, userID, objectKey string) (*domain.StructuredResume, error) {
-	// 步骤 1：从 S3 下载 PDF
+	// 获取信号量（并发限制）
+	select {
+	case s.sem <- struct{}{}:
+		defer func() { <-s.sem }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	// 步骤 1：从 S3 下载 PDF（原始文件已由前端直传，这里是读取）
 	rc, err := s.s3.Download(ctx, objectKey)
 	if err != nil {
 		log.Errorf("[ResumeService] download pdf key=%s: %v", objectKey, err)
@@ -107,7 +128,7 @@ func (s *resumeService) Parse(ctx context.Context, userID, objectKey string) (*d
 	}
 	defer rc.Close()
 
-	// 步骤 2：逐页提取文本（内置 3MB 大小限制）
+	// 步骤 2：逐页提取文本（内置 3MB 大小限制，超出返回 ErrFileTooLarge）
 	text, err := resumepdf.ExtractText(rc)
 	if err != nil {
 		log.Errorf("[ResumeService] extract text key=%s: %v", objectKey, err)
@@ -115,13 +136,14 @@ func (s *resumeService) Parse(ctx context.Context, userID, objectKey string) (*d
 	}
 	log.Infof("[ResumeService] pdf text extracted key=%s, chars=%d", objectKey, len(text))
 
-	// 步骤 3：SHA-256 去重
+	// 步骤 3：SHA-256 去重（命中则跳过 LLM，直接返回）
 	hash := sha256Hex(text)
 	if cached, err := s.db.GetByHash(ctx, hash); err == nil && cached != nil {
-		// 命中：更新 user_id 绑定（同一 PDF 换用户复用），写 Redis 缓存
 		cached.UserID = userID
+		// 更新 PG 中的 user_id 绑定和 s3_key（新用户上传相同简历）
+		_ = s.db.Upsert(ctx, userID, hash, objectKey, cached)
 		_ = s.rdb.SaveResume(ctx, cached, s.resumeTTL())
-		log.Infof("[ResumeService] resume cache hit hash=%s user=%s", hash[:8], userID)
+		log.Infof("[ResumeService] resume cache hit hash=%.8s user=%s", hash, userID)
 		return cached, nil
 	}
 
@@ -140,66 +162,58 @@ func (s *resumeService) Parse(ctx context.Context, userID, objectKey string) (*d
 	}
 	result.UserID = userID
 
-	// 步骤 5：写入 PG（去重 upsert）
-	if err := s.db.Upsert(ctx, userID, hash, &result); err != nil {
-		// 写 PG 失败不阻断，日志记录后继续
+	// 步骤 5：写入 PG（去重 upsert，记录 s3_key 备份路径）
+	if err := s.db.Upsert(ctx, userID, hash, objectKey, &result); err != nil {
 		log.Errorf("[ResumeService] upsert resume to PG: %v", err)
+		// 写 PG 失败不阻断
 	}
 
-	log.Infof("[ResumeService] resume parsed successfully user=%s hash=%s", userID, hash[:8])
+	log.Infof("[ResumeService] resume parsed successfully user=%s hash=%.8s", userID, hash)
 	return &result, nil
 }
 
 // Submit 保存用户确认后的简历，写 PG 主存储 + Redis 1h 缓存。
-// userID 由调用方从 JWT 中取，resume.UserID 必须与 userID 一致。
 func (s *resumeService) Submit(ctx context.Context, resume domain.StructuredResume) (resumeID string, err error) {
 	if resume.UserID == "" {
 		return "", fmt.Errorf("user_id is required")
 	}
 
-	// 序列化做 hash（Submit 时内容可能经用户手改，重新计算）
-	serialized := fmt.Sprintf("%v", resume) // 简单序列化用于 hash
+	serialized := fmt.Sprintf("%v", resume)
 	hash := sha256Hex(serialized)
 
-	// 写 PG
-	if err := s.db.Upsert(ctx, resume.UserID, hash, &resume); err != nil {
+	if err := s.db.Upsert(ctx, resume.UserID, hash, "", &resume); err != nil {
 		return "", fmt.Errorf("save resume to PG: %w", err)
 	}
 
-	// 写 Redis 缓存（1h，按 config 覆盖）
 	if err := s.rdb.SaveResume(ctx, &resume, s.resumeTTL()); err != nil {
 		log.Warnf("[ResumeService] save resume to Redis: %v", err)
-		// Redis 写失败不阻断
 	}
 
 	log.Infof("[ResumeService] resume submitted user=%s", resume.UserID)
-	return hash, nil // 以 hash 作为幂等 ID 返回
+	return hash, nil
 }
 
 // Get 查询用户当前简历，优先读 Redis，未命中则回源 PG 并回填缓存。
 func (s *resumeService) Get(ctx context.Context, userID string) (*domain.StructuredResume, error) {
-	// 1. Redis 优先
 	if cached, err := s.rdb.GetResume(ctx, userID); err == nil && cached != nil {
 		return cached, nil
 	}
 
-	// 2. PG 回源
 	resume, err := s.db.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get resume from PG: %w", err)
 	}
 	if resume == nil {
-		return nil, nil // 用户还没有简历
+		return nil, nil
 	}
 
-	// 3. 回填 Redis
 	if err := s.rdb.SaveResume(ctx, resume, s.resumeTTL()); err != nil {
 		log.Warnf("[ResumeService] refill redis resume user=%s: %v", userID, err)
 	}
 	return resume, nil
 }
 
-// resumeTTL 返回简历 Redis 缓存 TTL，优先使用 config 配置，否则用默认 1h。
+// resumeTTL 返回简历 Redis 缓存 TTL。
 func (s *resumeService) resumeTTL() time.Duration {
 	if s.cfg != nil && s.cfg.ResumeRedisTTL > 0 {
 		return s.cfg.ResumeRedisTTL

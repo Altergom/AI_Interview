@@ -66,21 +66,23 @@ func (r *ResumeRepository) GetByUserID(ctx context.Context, userID string) (*dom
 }
 
 // Upsert 按 content_hash 插入或更新简历（ON CONFLICT DO UPDATE）。
-// 同一 hash 的简历若已存在，更新 user_id 和 updated_at（内容不变）。
-func (r *ResumeRepository) Upsert(ctx context.Context, userID, hash string, resume *domain.StructuredResume) error {
+// s3Key 记录原始 PDF 在 S3 的对象路径（备份追溯用）。
+// 同一 hash 的简历若已存在，更新 user_id / s3_key / updated_at（解析结果不变）。
+func (r *ResumeRepository) Upsert(ctx context.Context, userID, hash, s3Key string, resume *domain.StructuredResume) error {
 	data, err := json.Marshal(resume)
 	if err != nil {
 		return fmt.Errorf("[ResumeRepo] marshal resume: %w", err)
 	}
 
 	const q = `
-		INSERT INTO resumes (user_id, content_hash, parsed_data)
-		VALUES ($1, $2, $3)
+		INSERT INTO resumes (user_id, content_hash, s3_key, parsed_data)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (content_hash) DO UPDATE
 		  SET user_id    = EXCLUDED.user_id,
+		      s3_key     = EXCLUDED.s3_key,
 		      updated_at = NOW()`
 
-	if _, err := r.db.ExecContext(ctx, q, userID, hash, data); err != nil {
+	if _, err := r.db.ExecContext(ctx, q, userID, hash, s3Key, data); err != nil {
 		return fmt.Errorf("[ResumeRepo] upsert resume: %w", err)
 	}
 	return nil
