@@ -6,9 +6,13 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/redis/go-redis/v9"
 
 	"ai_interview/internal/config"
 	"ai_interview/internal/log"
+	"ai_interview/internal/middleware"
+	authmw "ai_interview/internal/middleware/auth"
+	"ai_interview/internal/middleware/ratelimit"
 	"ai_interview/internal/service"
 )
 
@@ -30,7 +34,8 @@ type Server struct {
 // NewServer 创建并配置好服务实例，注册所有路由。
 func NewServer(cfg *config.Config, svc Services) *Server {
 	h := server.Default(server.WithHostPorts(cfg.HTTPAddr))
-	newRouter(svc).register(h)
+	h.Use(middleware.Logger()) // 全局：注入 request_id + 访问日志
+	newRouter(cfg.JWTSecret, svc).register(h)
 	return &Server{h: h}
 }
 
@@ -47,6 +52,7 @@ func (s *Server) Shutdown() {
 
 // Router 聚合所有子模块 handler，统一注册路由。
 type Router struct {
+	jwtSecret     string
 	auth          *authHandler
 	device        *deviceHandler
 	resume        *resumeHandler
@@ -55,8 +61,9 @@ type Router struct {
 	questionnaire *questionnaireHandler
 }
 
-func newRouter(svc Services) *Router {
+func newRouter(jwtSecret string, svc Services) *Router {
 	return &Router{
+		jwtSecret:     jwtSecret,
 		auth:          &authHandler{svc: svc.Auth},
 		device:        &deviceHandler{svc: svc.Device},
 		resume:        &resumeHandler{svc: svc.Resume},
@@ -66,16 +73,19 @@ func newRouter(svc Services) *Router {
 	}
 }
 
-// register 按 API 文档注册所有路由，路径统一加 /v1 前缀。
+// register 按 API 文档注册所有路由。
+//
+// 路由分层：
+//   - 公开路由：健康检查、auth 三个端点、设备检测
+//   - 受保护路由（HAuth）：简历、面试、报告、问卷
 func (r *Router) register(h *server.Hertz) {
+	// ── 公开端点 ─────────────────────────────────────────────────────────────
 	h.GET("/", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(http.StatusOK, map[string]string{
 			"service": "ai_interview",
 			"role":    "api",
 		})
 	})
-
-	// 存活探针
 	h.GET("/health", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -85,24 +95,27 @@ func (r *Router) register(h *server.Hertz) {
 
 	v1 := h.Group("/v1")
 
-	// 认证模块
+	// 认证模块（无需鉴权）
 	auth := v1.Group("/auth")
 	auth.POST("/register", r.auth.Register)
 	auth.POST("/login", r.auth.Login)
 	auth.POST("/guest", r.auth.Guest)
 
-	// 设备检测模块
+	// 设备检测（无需鉴权，麦克风测试在登录前进行）
 	v1.POST("/device/check", r.device.Check)
 
+	// ── 受保护端点（HAuth 校验 JWT）────────────────────────────────────────
+	hauth := authmw.HAuth(r.jwtSecret)
+
 	// 简历模块
-	resume := v1.Group("/resume")
-	resume.GET("/upload-url", r.resume.PresignUpload) // 生成直传预签名 URL
+	resume := v1.Group("/resume", hauth)
+	resume.GET("/upload-url", r.resume.PresignUpload)
 	resume.POST("/parse", r.resume.Parse)
 	resume.POST("/submit", r.resume.Submit)
 	resume.GET("", r.resume.Get)
 
 	// 面试模块
-	interview := v1.Group("/interview")
+	interview := v1.Group("/interview", hauth)
 	interview.POST("/config", r.interview.Config)
 	interview.POST("/create", r.interview.Create)
 	interview.GET("/stream", r.interview.Stream)
@@ -112,12 +125,12 @@ func (r *Router) register(h *server.Hertz) {
 	interview.POST("/code/submit", r.interview.CodeSubmit)
 
 	// 报告模块
-	report := v1.Group("/report")
+	report := v1.Group("/report", hauth)
 	report.GET("/status", r.report.Status)
 	report.GET("", r.report.Get)
 
 	// 问卷模块
-	questionnaire := v1.Group("/questionnaire")
+	questionnaire := v1.Group("/questionnaire", hauth)
 	questionnaire.GET("", r.questionnaire.Get)
 	questionnaire.POST("/submit", r.questionnaire.Submit)
 }

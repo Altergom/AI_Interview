@@ -9,7 +9,6 @@ import (
 
 	"ai_interview/internal/auth"
 	biz "ai_interview/internal/errors"
-	"ai_interview/internal/handler"
 )
 
 // Context key 常量，供 handler/service 层读取。
@@ -18,6 +17,27 @@ const (
 	CtxKeyUserID  = "user_id"
 	CtxKeyIsGuest = "is_guest"
 )
+
+// authErrResp 401 响应体，与 handler.Result[T] 格式保持一致，避免 import cycle。
+type authErrResp struct {
+	Success bool         `json:"success"`
+	Data    any          `json:"data"`
+	Error   *authErrBody `json:"error"`
+}
+
+type authErrBody struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func rejectUnauthorized(ctx context.Context, c *app.RequestContext, msg string) {
+	c.JSON(http.StatusUnauthorized, authErrResp{
+		Success: false,
+		Data:    nil,
+		Error:   &authErrBody{Code: int(biz.CodeUnauthorized), Message: msg},
+	})
+	c.Abort()
+}
 
 // HAuth 返回 JWT 鉴权中间件。
 //
@@ -34,15 +54,13 @@ func HAuth(secret string) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		token := extractBearer(c)
 		if token == "" {
-			handler.Fail(ctx, c, http.StatusUnauthorized, biz.CodeUnauthorized, "missing or malformed authorization header")
-			c.Abort()
+			rejectUnauthorized(ctx, c, "missing or malformed authorization header")
 			return
 		}
 
 		claims, err := auth.ValidateToken(secret, token)
 		if err != nil {
-			handler.Fail(ctx, c, http.StatusUnauthorized, biz.CodeUnauthorized, "invalid or expired token")
-			c.Abort()
+			rejectUnauthorized(ctx, c, "invalid or expired token")
 			return
 		}
 
