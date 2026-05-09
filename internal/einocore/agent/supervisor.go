@@ -13,22 +13,23 @@ import (
 	"ai_interview/internal/llm"
 )
 
-func NewSupervisor() (adk.ResumableAgent, error) {
-	ctx := context.Background()
+// SupervisorConfig Supervisor 构造参数，外部依赖从 app 层注入。
+type SupervisorConfig struct {
+	SelectorCfg SelectorConfig
+}
 
+// NewSupervisor 创建面试 Supervisor Agent。
+// 所有外部依赖（Redis、SkillsDir）通过 cfg 注入，避免内部硬编码。
+func NewSupervisor(ctx context.Context, cfg SupervisorConfig) (adk.ResumableAgent, error) {
 	model, err := llm.Registry.NewChatModel(ctx, llm.RoleSupervisor)
 	if err != nil {
-		return nil, fmt.Errorf("[supervisor]new chat model: %w", err)
+		return nil, fmt.Errorf("[supervisor] new chat model: %w", err)
 	}
 
-	// 创建 ASR/TTS Tool
+	// ASR/TTS Tool
 	var asrService tools.ASRService
 	var ttsService tools.TTSService
-
-	// 开发环境：使用 Mock 服务
-	// 生产环境：使用千问服务
 	useQwenService := true
-
 	if useQwenService {
 		asrService = tools.NewQwenASRService()
 		ttsService = tools.NewQwenTTSService()
@@ -39,15 +40,13 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 
 	asrTool, err := tools.NewASRTool(asrService)
 	if err != nil {
-		return nil, fmt.Errorf("[tools]NewASRTool: %v", err)
+		return nil, fmt.Errorf("[supervisor] new asr tool: %w", err)
 	}
-
 	ttsTool, err := tools.NewTTSTool(ttsService)
 	if err != nil {
-		return nil, fmt.Errorf("[tools]NewTTSTool: %v", err)
+		return nil, fmt.Errorf("[supervisor] new tts tool: %w", err)
 	}
 
-	// 创建 Supervisor Agent（配置 ASR/TTS Tool）
 	supervisorAgent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Name:        "supervisor",
 		Description: "面试流程监管者，负责协调各个子 Agent 和工具",
@@ -63,7 +62,7 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 - TTS: 将文字转为语音（当需要语音输出时使用）
 
 可用的子 Agent：
-- question_selector: 从题库选择合适的问题
+- question_selector: 根据候选人方向加载 Skill 规则，生成技术面试题
 - response_analyzer: 分析候选人的回答质量
 - stage_manager: 判断是否应该切换面试阶段
 
@@ -76,34 +75,29 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("[adk]NewChatModelAgent: %v", err)
+		return nil, fmt.Errorf("[supervisor] new chat model agent: %w", err)
 	}
 
-	// 创建子 Agent
-	selector, err := NewSelector()
+	// 子 Agent：selector 接受外部注入的 SelectorConfig
+	selector, err := NewSelector(ctx, cfg.SelectorCfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[supervisor] new selector: %w", err)
 	}
 	mgr, err := NewManager()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[supervisor] new manager: %w", err)
 	}
 	analyzer, err := NewAnalyzer()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[supervisor] new analyzer: %w", err)
 	}
 
-	// 创建 Supervisor（配置子 Agent）
 	su, err := supervisor.New(ctx, &supervisor.Config{
 		Supervisor: supervisorAgent,
-		SubAgents: []adk.Agent{
-			selector,
-			mgr,
-			analyzer,
-		},
+		SubAgents:  []adk.Agent{selector, mgr, analyzer},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("[supervisor]New: %v", err)
+		return nil, fmt.Errorf("[supervisor] supervisor.New: %w", err)
 	}
 
 	return su, nil
