@@ -131,9 +131,14 @@ func parseFromEnv() (*Config, error) {
 		HTTPAddr:    get("HTTP_ADDR", ":8080"),
 		PostgresDSN: get("POSTGRES_DSN", ""),
 
-		RedisAddr:     get("REDIS_ADDR", "127.0.0.1:6379"),
-		RedisPassword: get("REDIS_PASSWORD", ""),
-		RedisDB:       redisDB,
+		RedisAddr:         get("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisPassword:     get("REDIS_PASSWORD", ""),
+		RedisDB:           redisDB,
+		RedisPoolSize:     redisPoolSize,
+		RedisMinIdleConns: redisMinIdleConns,
+		RedisDialTimeout:  redisDialTimeout,
+		RedisReadTimeout:  redisReadTimeout,
+		RedisWriteTimeout: redisWriteTimeout,
 
 		MQBrokerURL:              get("MQ_BROKER_URL", ""),
 		MQTopicInterviewFinished: get("MQ_TOPIC_INTERVIEW_FINISHED", mq.TopicInterviewFinished),

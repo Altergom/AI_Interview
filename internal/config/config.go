@@ -15,9 +15,14 @@ type Config struct {
 	PostgresDSN string
 
 	// Redis
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
+	RedisAddr         string
+	RedisPassword     string
+	RedisDB           int
+	RedisPoolSize     int           // 连接池大小，默认 10
+	RedisMinIdleConns int           // 最小空闲连接数，默认 2
+	RedisDialTimeout  time.Duration // 连接超时，默认 5s
+	RedisReadTimeout  time.Duration // 读超时，默认 3s
+	RedisWriteTimeout time.Duration // 写超时，默认 3s
 
 	// 消息队列
 	MQBrokerURL              string
