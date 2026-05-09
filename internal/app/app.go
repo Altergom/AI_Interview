@@ -115,10 +115,12 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// 8. Service 层
+	resumeSvc := service.NewResumeService(s3Client)
 	interviewSvc := service.NewInterviewService(sessionManager, graph)
 
 	// 9. HTTP Server
 	srv := handler.NewServer(cfg, handler.Services{
+		Resume:    resumeSvc,
 		Interview: interviewSvc,
 	})
 

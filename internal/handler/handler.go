@@ -2,6 +2,7 @@ package handler
 
 import (
 	"ai_interview/internal/log"
+	"ai_interview/internal/middleware"
 	"context"
 	"net/http"
 
@@ -30,6 +31,7 @@ type Server struct {
 // NewServer 创建并配置好服务实例，注册所有路由。
 func NewServer(cfg *config.Config, svc Services) *Server {
 	h := server.Default(server.WithHostPorts(cfg.HTTPAddr))
+	h.Use(middleware.Recovery()) // 全局 panic 恢复
 	newRouter(svc).register(h)
 	return &Server{h: h}
 }
@@ -96,8 +98,10 @@ func (r *Router) register(h *server.Hertz) {
 
 	// 简历模块
 	resume := v1.Group("/resume")
+	resume.GET("/upload-url", r.resume.PresignUpload) // 生成直传预签名 URL
 	resume.POST("/parse", r.resume.Parse)
 	resume.POST("/submit", r.resume.Submit)
+	resume.GET("", r.resume.Get)
 
 	// 面试模块
 	interview := v1.Group("/interview")
