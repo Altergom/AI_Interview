@@ -89,4 +89,8 @@ type Config struct {
 	// TTL：可由 RESUME_REDIS_TTL、INTERVIEW_STATE_TTL 等 duration 字符串覆盖
 	ResumeRedisTTL    time.Duration
 	InterviewStateTTL time.Duration
+
+	// Skill 出题模块
+	// SkillsDir SKILL.md 所在父目录的绝对路径，默认 "internal/einocore/skills"（相对项目根）
+	SkillsDir string
 }

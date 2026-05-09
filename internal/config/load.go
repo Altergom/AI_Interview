@@ -235,5 +235,6 @@ func parseFromEnv() (*Config, error) {
 
 		ResumeRedisTTL:    resumeTTL,
 		InterviewStateTTL: interviewTTL,
+		SkillsDir:         get("SKILLS_DIR", "internal/einocore/skills"),
 	}, nil
 }

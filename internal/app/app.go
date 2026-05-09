@@ -106,7 +106,13 @@ func New(cfg *config.Config) (*App, error) {
 	sessionManager := service.NewSessionManager(rdb.Client(), cfg.InterviewStateTTL)
 
 	// 7. AI 层
-	supervisor, err := agent.NewSupervisor()
+	supervisor, err := agent.NewSupervisor(ctx, agent.SupervisorConfig{
+		SelectorCfg: agent.SelectorConfig{
+			SkillsDir:   cfg.SkillsDir,
+			RedisClient: rdb.Client(),
+			AskedQTTL:   cfg.InterviewStateTTL,
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("new supervisor: %w", err)
 	}
@@ -125,7 +131,7 @@ func New(cfg *config.Config) (*App, error) {
 	authSvc := service.NewAuthService(userRepo, jwtCfg)
 	resumeRepo := postgres.NewResumeRepository(db.Conn())
 	resumeSvc := service.NewResumeService(s3Client, resumeRepo, rdb, cfg)
-	interviewSvc := service.NewInterviewService(sessionManager, graph)
+	interviewSvc := service.NewInterviewService(sessionManager, graph, rdb, cfg.InterviewStateTTL)
 
 	// 9. HTTP Server
 	srv := handler.NewServer(cfg, handler.Services{
