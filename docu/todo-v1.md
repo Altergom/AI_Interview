@@ -43,8 +43,8 @@
 - [x] **Elasticsearch 初始化**：Docker Compose 加 ES 单节点（`elasticsearch:8.x`）
 - [x] 创建 ES 索引 `bank_questions`（mapping：`question` text + `tags` keyword + `difficulty` keyword）
 - [x] migrations 整理：新增 `bank_questions` 元数据表（不含向量列，仅结构化字段）
-- [ ] PostgreSQL 连接池配置
-- [ ] Redis 连接初始化
+- [x] PostgreSQL 连接池配置
+- [x] Redis 连接初始化
 - [x] S3 客户端配置 + Bucket 权限策略
 - [x] LlmProviderRegistry 骨架（v1 仅编译期静态配置，从 `.env` 读）
 
@@ -52,45 +52,45 @@
 
 ## 通用能力
 
-- [ ] 错误码 10 域定义（`internal/errors/code.go`）
-- [ ] `BizError` 结构 + 全局错误处理中间件（`internal/errors/biz_error.go`）
-- [ ] 统一响应格式 `Result<T>`（`{ success, data, error }`）
-- [ ] **StructuredOutputInvoker**：JSON 输出最多重试 3 次 + 降级（`internal/einocore/structured_output.go`）
-- [ ] **限流中间件** + Redis Lua 滑窗脚本（`internal/middleware/ratelimit/`）
+- [x] 错误码 10 域定义（`internal/errors/code.go`）
+- [x] `BizError` 结构 + 全局错误处理中间件（`internal/errors/biz_error.go`）
+- [x] 统一响应格式 `Result<T>`（`{ success, data, error }`）
+- [x] **StructuredOutputInvoker**：JSON 输出最多重试 3 次 + 降级（`internal/einocore/structured_output.go`）
+- [x] **限流中间件** + Redis Lua 滑窗脚本（`internal/middleware/ratelimit/`）
   - 维度：`IP`（10/min）+ `USER`（30/min）
   - Key 设计：`ratelimit:{handler}:{dimension}:{value}`
-- [ ] **异步任务状态机**：`pending → processing → completed / failed`
-- [ ] 任务实体预校验工具（处理前查实体存在，被删则 ACK 丢弃）
-- [ ] 全局日志中间件（注入 request_id、user_id 到 context）
+- [x] **异步任务状态机**：报告完成由 WebSocket 推送；`reports` 表加 `error_message` 标记失败；状态由 RabbitMQ 投递保证
+- [x] 任务实体预校验工具（处理前查实体存在，被删则 ACK 丢弃）
+- [x] 全局日志中间件（注入 request_id、user_id 到 context）
 
 ---
 
 ## 用户与认证
 
-- [ ] PostgreSQL `users` 表实现（已在 `001_init.sql`）
-- [ ] JWT 工具（`internal/auth/jwt.go`）：`GenerateToken` / `ValidateToken`，secret 从 `JWT_SECRET` 读
-- [ ] bcrypt 密码加密（`internal/auth/password.go`）
-- [ ] 注册 API：检查邮箱 → 加密 → 插 PG → 签发 JWT
-- [ ] 登录 API：查用户 → 验密码 → 签发 JWT
-- [ ] 游客模式：`guest_` 前缀 ID + `is_guest=true` + 24h JWT
-- [ ] HAuth 中间件：JWT 鉴权（支持游客 token）
-- [ ] 路由初始化（Hertz）
+- [x] PostgreSQL `users` 表实现（已在 `001_init.sql`）
+- [x] JWT 工具（`internal/auth/jwt.go`）：`GenerateToken` / `ValidateToken`，secret 从 `JWT_SECRET` 读
+- [x] bcrypt 密码加密（`internal/auth/password.go`）
+- [x] 注册 API：检查邮箱 → 加密 → 插 PG → 签发 JWT
+- [x] 登录 API：查用户 → 验密码 → 签发 JWT
+- [x] 游客模式：`guest_` 前缀 ID + `is_guest=true` + 24h JWT
+- [x] HAuth 中间件：JWT 鉴权（支持游客 token）
+- [x] 路由初始化（Hertz）
 
 ---
 
 ## 简历模块
 
 - [x] 定义结构化简历领域模型（`StructuredResume` 等）
-- [ ] S3 预签名 URL 生成（`internal/service/user/upload.go`），5 分钟有效
-- [ ] PDF 文本提取（`pdfcpu` 库）+ 流式处理避免 OOM
-- [ ] LLM 结构化解析（**必须经 `StructuredOutputInvoker`**）
-- [ ] **降级策略**：LLM 失败返回空结构体 → 前端显示空表单让用户手填
-- [ ] **去重**：`resumes` 表加 `content_hash` 列（SHA-256），命中直接返回
-- [ ] PostgreSQL 主存储 + Redis 1h 缓存（按需回填）
-- [ ] PDF 备份原始文件到 S3
-- [ ] 文件上传并发限制（信号量 5 并发）+ 大小限制 3MB
-- [ ] API：`POST /v1/resume/parse` / `POST /v1/resume/submit` / `GET /v1/resume`
-- [ ] 限流：`/v1/resume/parse` 接 IP+USER 维度
+- [x] S3 预签名 URL 生成（`internal/service/resume_impl.go`），5 分钟有效
+- [x] PDF 文本提取（`pdfcpu` 库）+ 流式处理避免 OOM
+- [x] LLM 结构化解析（**必须经 `StructuredOutputInvoker`**）
+- [x] **降级策略**：LLM 失败返回空结构体 → 前端显示空表单让用户手填
+- [x] **去重**：`resumes` 表加 `content_hash` 列（SHA-256），命中直接返回
+- [x] PostgreSQL 主存储 + Redis 1h 缓存（按需回填）
+- [x] PDF 备份原始文件到 S3
+- [x] 文件上传并发限制（信号量 5 并发）+ 大小限制 3MB
+- [x] API：`POST /v1/resume/parse` / `POST /v1/resume/submit` / `GET /v1/resume`
+- [x] 限流：`/v1/resume/parse` 接 IP+USER 维度
 
 ---
 
