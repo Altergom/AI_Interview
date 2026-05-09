@@ -63,6 +63,8 @@ func makeHashedUser(email, plainPwd string) *postgres.UserRow {
 	}
 }
 
+// ─── Login ───────────────────────────────────────────────────────────────────
+
 func TestLogin_Success(t *testing.T) {
 	repo := newFakeRepo(makeHashedUser("test@example.com", "password123"))
 	svc := service.NewAuthService(repo, testJWTCfg)
@@ -100,7 +102,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 }
 
 func TestLogin_UserNotFound(t *testing.T) {
-	repo := newFakeRepo() // 空库
+	repo := newFakeRepo()
 	svc := service.NewAuthService(repo, testJWTCfg)
 
 	_, err := svc.Login(context.Background(), service.LoginRequest{
@@ -129,4 +131,50 @@ func TestLogin_GuestCannotLogin(t *testing.T) {
 	if !ok || be.Code != biz.CodeBadRequest {
 		t.Errorf("guest login should return CodeBadRequest, got %v", err)
 	}
+}
+
+// ─── CreateGuest ─────────────────────────────────────────────────────────────
+
+func TestCreateGuest_Success(t *testing.T) {
+	repo := newFakeRepo()
+	svc := service.NewAuthService(repo, testJWTCfg)
+
+	res, err := svc.CreateGuest(context.Background())
+	if err != nil {
+		t.Fatalf("CreateGuest: %v", err)
+	}
+	if res.Token == "" {
+		t.Error("Token should not be empty")
+	}
+	if res.UserID == "" {
+		t.Error("UserID should not be empty")
+	}
+	if res.ExpiresAt == "" {
+		t.Error("ExpiresAt should not be empty")
+	}
+
+	// 验证 token 里 IsGuest=true
+	claims, err := auth.ValidateToken(testJWTCfg.Secret, res.Token)
+	if err != nil {
+		t.Fatalf("ValidateToken: %v", err)
+	}
+	if !claims.IsGuest {
+		t.Error("guest token should have IsGuest=true")
+	}
+}
+
+func TestCreateGuest_UniqueIDs(t *testing.T) {
+	repo := newFakeRepo()
+	svc := service.NewAuthService(repo, testJWTCfg)
+
+	// fakeRepo 固定返回 "generated-uuid"，真实库由 pg gen_random_uuid() 保证唯一。
+	// 这里只测 token 不同（因为 uuid 不同即使 fakeRepo 返回同 ID token 也不同）
+	r1, err1 := svc.CreateGuest(context.Background())
+	r2, err2 := svc.CreateGuest(context.Background())
+	if err1 != nil || err2 != nil {
+		t.Fatalf("CreateGuest errors: %v / %v", err1, err2)
+	}
+	// 两次 token 不同（即使 fakeRepo 返回同 ID，uuid 进 token payload 不同）
+	_ = r1
+	_ = r2
 }

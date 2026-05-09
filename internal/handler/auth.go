@@ -67,6 +67,12 @@ func (h *authHandler) Login(ctx context.Context, c *app.RequestContext) {
 }
 
 // Guest POST /v1/auth/guest
+// 无需请求体，直接生成游客账号，返回 24h JWT。
 func (h *authHandler) Guest(ctx context.Context, c *app.RequestContext) {
-	panic("not implemented")
+	result, err := h.svc.CreateGuest(ctx)
+	if err != nil {
+		HandleErr(ctx, c, err)
+		return
+	}
+	OK(ctx, c, result)
 }

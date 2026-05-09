@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 
 	"ai_interview/internal/auth"
 	biz "ai_interview/internal/errors"
@@ -109,7 +112,30 @@ func (s *authService) Login(ctx context.Context, req LoginRequest) (*AuthResult,
 	return &AuthResult{UserID: user.ID, Username: user.Username, Token: token}, nil
 }
 
-// CreateGuest 留 stub，Task 6 实现。
+// CreateGuest 生成游客账号：guest_{uuid8} 前缀 ID + is_guest=true + 24h JWT。
 func (s *authService) CreateGuest(ctx context.Context) (*GuestResult, error) {
-	return nil, biz.NewMsg(biz.CodeInternal, "not implemented")
+	// 用 uuid 生成唯一短标识，前 8 位作为展示名后缀
+	shortID := strings.ReplaceAll(uuid.New().String(), "-", "")[:8]
+	username := "guest_" + shortID
+	// 邮箱占位，保证 NOT NULL UNIQUE 约束
+	email := username + "@guest.local"
+
+	id, err := s.users.Create(ctx, postgres.UserRow{
+		Email:        email,
+		Username:     username,
+		PasswordHash: "", // 游客无密码
+		IsGuest:      true,
+	})
+	if err != nil {
+		return nil, biz.Wrap(biz.CodeInternal, err)
+	}
+
+	token, err := auth.GenerateToken(s.jwtCfg, id, true) // isGuest=true → 24h
+	if err != nil {
+		return nil, biz.Wrap(biz.CodeInternal, err)
+	}
+
+	expiresAt := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
+	log.Infof("[AuthService] created guest %s id=%s", username, id)
+	return &GuestResult{UserID: id, Token: token, ExpiresAt: expiresAt}, nil
 }
