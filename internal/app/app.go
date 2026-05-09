@@ -132,6 +132,7 @@ func New(cfg *config.Config) (*App, error) {
 		Auth:      authSvc,
 		Resume:    resumeSvc,
 		Interview: interviewSvc,
+		Rdb:       rdb.Client(),
 	})
 
 	return &App{Server: srv, db: db, redis: rdb, s3: s3Client, milvus: milvusClient, es: esClient}, nil

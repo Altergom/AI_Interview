@@ -24,6 +24,8 @@ type Services struct {
 	Device        service.DeviceService
 	Report        service.ReportService
 	Questionnaire service.QuestionnaireService
+	// Rdb 用于限流中间件（Lua 滑窗脚本），由 app 层注入
+	Rdb *redis.Client
 }
 
 // Server 封装 HTTP 服务生命周期，对外隐藏 Hertz 实现细节。
@@ -53,6 +55,7 @@ func (s *Server) Shutdown() {
 // Router 聚合所有子模块 handler，统一注册路由。
 type Router struct {
 	jwtSecret     string
+	rdb           *redis.Client // 限流用
 	auth          *authHandler
 	device        *deviceHandler
 	resume        *resumeHandler
@@ -64,6 +67,7 @@ type Router struct {
 func newRouter(jwtSecret string, svc Services) *Router {
 	return &Router{
 		jwtSecret:     jwtSecret,
+		rdb:           svc.Rdb,
 		auth:          &authHandler{svc: svc.Auth},
 		device:        &deviceHandler{svc: svc.Device},
 		resume:        &resumeHandler{svc: svc.Resume},
@@ -110,7 +114,8 @@ func (r *Router) register(h *server.Hertz) {
 	// 简历模块
 	resume := v1.Group("/resume", hauth)
 	resume.GET("/upload-url", r.resume.PresignUpload)
-	resume.POST("/parse", r.resume.Parse)
+	// /parse 接 IP+USER 双维度限流（10/min IP, 30/min USER）
+	resume.POST("/parse", ratelimit.Middleware(r.rdb, "resume.parse"), r.resume.Parse)
 	resume.POST("/submit", r.resume.Submit)
 	resume.GET("", r.resume.Get)
 
