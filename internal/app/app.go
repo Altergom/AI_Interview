@@ -9,6 +9,8 @@ import (
 	"ai_interview/internal/einocore/compose"
 	"ai_interview/internal/handler"
 	"ai_interview/internal/service"
+	"ai_interview/internal/storage/es"
+	"ai_interview/internal/storage/milvus"
 	"ai_interview/internal/storage/postgres"
 	sredis "ai_interview/internal/storage/redis"
 	"ai_interview/internal/storage/s3"
@@ -20,6 +22,8 @@ type App struct {
 	db     *postgres.DB
 	redis  *sredis.Client
 	s3     *s3.Client
+	milvus *milvus.Client
+	es     *es.Client
 }
 
 // New 按依赖顺序初始化所有组件，返回可运行的 App 实例。
@@ -63,10 +67,37 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("init s3: %w", err)
 	}
 
-	// 4. Session 管理
+	// 4. Milvus（向量数据库）
+	milvusClient, err := milvus.New(ctx, milvus.Options{
+		Addr:       cfg.MilvusAddr,
+		Collection: cfg.MilvusCollection,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init milvus: %w", err)
+	}
+	if err := milvusClient.EnsureCollection(ctx); err != nil {
+		return nil, fmt.Errorf("milvus ensure collection: %w", err)
+	}
+
+	// 5. Elasticsearch（关键词/标签检索）
+	esClient, err := es.New(ctx, es.Options{
+		Addrs:    cfg.ESAddrs,
+		Username: cfg.ESUsername,
+		Password: cfg.ESPassword,
+		Index:    cfg.ESIndex,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init es: %w", err)
+	}
+	if err := esClient.EnsureIndex(ctx); err != nil {
+		return nil, fmt.Errorf("es ensure index: %w", err)
+	}
+
+	// 6. Session 管理
+	llm.Init(cfg) // LLM provider registry 初始化（静态配置，无 IO）
 	sessionManager := service.NewSessionManager(rdb.Client(), cfg.InterviewStateTTL)
 
-	// 5. AI 层
+	// 7. AI 层
 	supervisor, err := agent.NewSupervisor()
 	if err != nil {
 		return nil, fmt.Errorf("new supervisor: %w", err)
@@ -76,15 +107,15 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("new interview graph: %w", err)
 	}
 
-	// 6. Service 层
+	// 8. Service 层
 	interviewSvc := service.NewInterviewService(sessionManager, graph)
 
-	// 7. HTTP Server
+	// 9. HTTP Server
 	srv := handler.NewServer(cfg, handler.Services{
 		Interview: interviewSvc,
 	})
 
-	return &App{Server: srv, db: db, redis: rdb, s3: s3Client}, nil
+	return &App{Server: srv, db: db, redis: rdb, s3: s3Client, milvus: milvusClient, es: esClient}, nil
 }
 
 // Run 启动服务，阻塞直到服务退出。
