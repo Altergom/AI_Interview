@@ -4,26 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cloudwego/eino-ext/components/model/qwen"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/adk/prebuilt/supervisor"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 
-	"ai_interview/internal/config"
 	"ai_interview/internal/einocore/tools"
+	"ai_interview/internal/llm"
 )
 
 func NewSupervisor() (adk.ResumableAgent, error) {
 	ctx := context.Background()
 
-	model, err := qwen.NewChatModel(ctx, &qwen.ChatModelConfig{
-		APIKey:  config.Cfg.QwenAPIKey,
-		Model:   config.Cfg.Supervisor,
-		BaseURL: config.Cfg.QwenBaseURL,
-	})
+	model, err := llm.Registry.NewChatModel(ctx, llm.RoleSupervisor)
 	if err != nil {
-		return nil, fmt.Errorf("[qwen]NewChatModel: %v", err)
+		return nil, fmt.Errorf("[supervisor]new chat model: %w", err)
 	}
 
 	// 创建 ASR/TTS Tool
@@ -32,7 +27,6 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 
 	// 开发环境：使用 Mock 服务
 	// 生产环境：使用千问服务
-	//useQwenService := false // 临时使用 Mock，实现千问后改为 true
 	useQwenService := true
 
 	if useQwenService {
@@ -54,7 +48,7 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 	}
 
 	// 创建 Supervisor Agent（配置 ASR/TTS Tool）
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	supervisorAgent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Name:        "supervisor",
 		Description: "面试流程监管者，负责协调各个子 Agent 和工具",
 		Instruction: `你是面试流程的监管者。
@@ -90,7 +84,7 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 	if err != nil {
 		return nil, err
 	}
-	manager, err := NewManager()
+	mgr, err := NewManager()
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +95,10 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 
 	// 创建 Supervisor（配置子 Agent）
 	su, err := supervisor.New(ctx, &supervisor.Config{
-		Supervisor: agent,
+		Supervisor: supervisorAgent,
 		SubAgents: []adk.Agent{
 			selector,
-			manager,
+			mgr,
 			analyzer,
 		},
 	})
