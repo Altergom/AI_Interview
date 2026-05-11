@@ -1,124 +1,65 @@
 # 千问 ASR/TTS 实现说明
 
-## ✅ 已实现（HTTP API）
+## 实现方式
 
-你说得对！千问支持 **DashScope HTTP API**，不需要 WebSocket。
+使用千问 **DashScope WebSocket Realtime API**，与 Java 版 interview-guide 的实现一致。
 
-### 实现方式
+| 服务 | 模型 | 协议 | 端点 |
+|------|------|------|------|
+| ASR  | `qwen3-asr-flash-realtime` | WebSocket | `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=<model>` |
+| TTS  | `qwen-tts-flash-realtime` | WebSocket | `wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=<model>` |
 
-使用千问的 **OpenAI 兼容 API**：
-- **ASR**：`POST /v1/audio/transcriptions`
-- **TTS**：`POST /v1/audio/speech`
+---
 
-### 代码实现
+## ASR（qwen_asr.go）
 
-#### ASR（qwen_asr.go）
+**流程：**
+1. 建立 WebSocket 连接（Bearer token 鉴权）
+2. 发送 `session.update`：配置 server VAD（400ms 静音阈值）、PCM 16kHz、中文
+3. 分块流式发送音频（每块 3200 字节 = 100ms），base64 编码
+4. 发送 `input_audio_buffer.commit` 触发最终识别
+5. 等待 `conversation.item.input_audio_transcription.completed` 事件，取 `transcript` 字段
 
-```go
-// 简单的 HTTP POST 请求
-url := fmt.Sprintf("%s/v1/audio/transcriptions", s.baseURL)
+**音频规格：** PCM 16kHz / 16bit / 单声道
 
-requestBody := map[string]any{
-    "model": "qwen3-asr-flash-realtime",
-    "audio": base64.StdEncoding.EncodeToString(audioData),
-    "language": "zh",
-    "format": "pcm",
-}
+**超时：** 30s（可通过 `QwenASRService.timeout` 调整）
 
-// 发送请求，获取文字结果
-```
+---
 
-#### TTS（qwen_tts.go）
+## TTS（qwen_tts.go）
 
-```go
-// 简单的 HTTP POST 请求
-url := fmt.Sprintf("%s/v1/audio/speech", s.baseURL)
+**流程：**
+1. 建立 WebSocket 连接
+2. 发送 `session.update`：配置音色（默认 Cherry）、PCM 16kHz、commit 模式
+3. 发送 `input_text_buffer.append` 推送文本
+4. 发送 `input_text_buffer.commit` 触发合成
+5. 收集 `response.audio.delta` 事件（base64 PCM chunk）
+6. 等待 `response.done`，返回拼接后的完整音频
 
-requestBody := map[string]any{
-    "model": "qwen-tts-flash-realtime",
-    "voice": "zhifeng_emo",
-    "input": text,
-    "response_format": "pcm",
-}
+**输出规格：** PCM 16kHz / 16bit / 单声道
 
-// 发送请求，获取音频数据
-```
+**默认音色：** Cherry（通过 `TTSVoice` 环境变量或 `SetVoice()` 覆盖）
+
+---
+
+## Mock 服务（mock.go）
+
+保留 `MockASRService` / `MockTTSService`，用于：
+- 单元测试（不依赖真实 API Key）
+- `APP_ENV=test` 或 `QWEN_API_KEY` 未配置时自动降级
 
 ---
 
 ## 配置
 
-### 环境变量
-
 ```bash
-# .env 文件
-QWEN_API_KEY=your_api_key_here
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-```
-
-### 使用方式
-
-```go
-// 在 agent/supervisor.go 中
-useQwenService := true // 使用千问服务
-
-// 创建服务
-asrService := tools.NewQwenASRService()
-ttsService := tools.NewQwenTTSService()
-
-// 创建 Tool
-asrTool, _ := tools.NewASRTool(asrService)
-ttsTool, _ := tools.NewTTSTool(ttsService)
-```
-
----
-
-## API 参考
-
-### ASR API
-
-**请求**：
-```json
-POST /v1/audio/transcriptions
-Authorization: Bearer {api_key}
-Content-Type: application/json
-
-{
-  "model": "qwen3-asr-flash-realtime",
-  "audio": "base64_encoded_audio_data",
-  "language": "zh",
-  "format": "pcm"
-}
-```
-
-**响应**：
-```json
-{
-  "text": "识别的文字内容"
-}
-```
-
-### TTS API
-
-**请求**：
-```json
-POST /v1/audio/speech
-Authorization: Bearer {api_key}
-Content-Type: application/json
-
-{
-  "model": "qwen-tts-flash-realtime",
-  "voice": "zhifeng_emo",
-  "input": "要转换的文字",
-  "response_format": "pcm",
-  "speed": 1.0
-}
-```
-
-**响应**：
-```
-Content-Type: audio/pcm
-[音频二进制数据]
+# .env
+QWEN_API_KEY=sk-xxx
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1  # LLM 用
+ASR_MODEL=qwen3-asr-flash-realtime
+TTS_MODEL=qwen-tts-flash-realtime
+TTS_VOICE=Cherry  # 可选：Cherry / Serena / Ethan 等
+APP_ENV=development  # test 时自动使用 Mock
 ```
 
 ---
@@ -126,37 +67,9 @@ Content-Type: audio/pcm
 ## 测试
 
 ```bash
-# 编译
-go build ./internal/einocore/tools/
+# Mock 单元测试（无需 API Key）
+go test ./internal/einocore/tools/... -run "TestASRTool_Mock|TestTTSTool_Mock" -v
 
-# 测试（需要配置真实的 API Key）
-go test ./internal/einocore/tools/ -run TestQwen -v
+# Qwen 集成测试（需要真实 QWEN_API_KEY）
+go test ./internal/einocore/tools/... -run "TestQwen" -v
 ```
-
----
-
-## 参考资料
-
-- [千问 DashScope API 参考](https://help.aliyun.com/zh/model-studio/dashscope-api-reference/)
-- [千问 OpenAI 兼容性](https://help.aliyun.com/zh/model-studio/developer-reference/compatibility-of-openai-with-dashscope)
-- [千问语音识别文档](https://help.aliyun.com/zh/model-studio/qwen-real-time-speech-recognition)
-- [千问语音合成文档](https://help.aliyun.com/zh/model-studio/qwen-tts-realtime)
-
----
-
-## 总结
-
-✅ **不需要 WebSocket**
-- 千问提供了简单的 HTTP API
-- 使用 OpenAI 兼容的接口
-- 异步调用，等待结果返回
-
-✅ **实现简单**
-- 只需要 HTTP POST 请求
-- 不需要额外的 WebSocket 库
-- 代码更简洁，易于维护
-
-✅ **适合面试场景**
-- 用户说完一段话
-- 上传音频，等待识别
-- 获取结果，继续对话

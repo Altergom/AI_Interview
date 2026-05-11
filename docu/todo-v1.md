@@ -98,10 +98,10 @@
 
 > 对标 interview-guide：`SKILL.md` 文件驱动出题，比 RAG 题库维护成本低。
 
-- [x] 创建目录 `internal/skills/{direction}/SKILL.md`，v1 至少覆盖 5 个方向：
+- [x] 创建目录 `internal/einocore/skills/{direction}/SKILL.md`，v1 至少覆盖 5 个方向：
   - `go-backend` / `java-backend` / `frontend` / `algorithm` / `ai-agent`
 - [x] 每个 SKILL.md 包含：考察范围、难度分布、追问策略、引用资料路径
-- [x] `SkillLoader`：启动加载 + 文件 hot-reload（不重启服务可迭代提示词）
+- [x] `SkillLoader`：Eino `NewBackendFromFilesystem` + `NewMiddleware` 接入，启动时校验目录；hot-reload 由每次请求读文件实现（不重启服务可更新 SKILL.md 内容）
 - [x] 历史题目跨 turn 去重：Redis Set `interview:{id}:asked_questions`
 
 ---
@@ -145,18 +145,18 @@
 
 > **删除** `qwen_asr.go` / `qwen_tts.go` 现有 HTTP 实现，重写为 WebSocket。
 
-- [ ] Qwen3 实时 ASR：`wss://dashscope.aliyuncs.com/api-ws/v1/realtime`
+- [x] Qwen3 实时 ASR：`wss://dashscope.aliyuncs.com/api-ws/v1/realtime`
   - 模型 `qwen3-asr-flash-realtime`
   - server VAD（400ms 静音阈值）
   - 实时中间结果 + 最终结果
   - 引入 `github.com/gorilla/websocket` 或 `nhooyr.io/websocket`
-- [ ] Qwen3 实时 TTS：模型 `qwen3-tts-flash-realtime`
+- [x] Qwen3 实时 TTS：模型 `qwen3-tts-flash-realtime`
   - 句子级并发 TTS（边生成边合成边播放）
   - PCM 16kHz 输出
   - 默认音色 Cherry
-- [ ] **删除** 现有 `qwen_asr.go` / `qwen_tts.go` HTTP 实现
-- [ ] 保留 Mock 服务用于单元测试（`tools/mock.go`）
-- [ ] 错误码：`WS_CONNECTION_FAILED(10002)` / `AI_SERVICE_TIMEOUT(7002)`
+- [x] **删除** 现有 `qwen_asr.go` / `qwen_tts.go` HTTP 实现
+- [x] 保留 Mock 服务用于单元测试（`tools/mock.go`）
+- [x] 错误码：`WS_CONNECTION_FAILED(10002)` / `AI_SERVICE_TIMEOUT(7002)`
 
 ---
 
@@ -175,7 +175,7 @@
 - [ ] **信息提取 Agent**：自我介绍补充提取 → merge 进 Redis 上下文
 - [x] Redis 状态读写封装（`internal/storage/redis`）
   - 面试状态、对话 history、面试配置
-- [ ] 面试状态结构补 `report_status` 字段：
+- [x] 面试状态结构补 `report_status` 字段：
 
 ```json
 {
