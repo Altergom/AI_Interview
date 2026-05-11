@@ -3,12 +3,14 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/adk/prebuilt/supervisor"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 
+	"ai_interview/internal/config"
 	"ai_interview/internal/einocore/tools"
 	"ai_interview/internal/llm"
 )
@@ -27,15 +29,15 @@ func NewSupervisor(ctx context.Context, cfg SupervisorConfig) (adk.ResumableAgen
 	}
 
 	// ASR/TTS Tool
+	// Mock 模式：APP_ENV=test 或 QWEN_API_KEY 未配置时使用 Mock，其余使用 Qwen WebSocket 实现
 	var asrService tools.ASRService
 	var ttsService tools.TTSService
-	useQwenService := true
-	if useQwenService {
-		asrService = tools.NewQwenASRService()
-		ttsService = tools.NewQwenTTSService()
-	} else {
+	if needsMock() {
 		asrService = tools.NewMockASRService()
 		ttsService = tools.NewMockTTSService()
+	} else {
+		asrService = tools.NewQwenASRService()
+		ttsService = tools.NewQwenTTSService()
 	}
 
 	asrTool, err := tools.NewASRTool(asrService)
@@ -101,4 +103,15 @@ func NewSupervisor(ctx context.Context, cfg SupervisorConfig) (adk.ResumableAgen
 	}
 
 	return su, nil
+}
+
+// needsMock 当 APP_ENV=test 或 QWEN_API_KEY 未配置时，使用 Mock ASR/TTS 服务。
+func needsMock() bool {
+	if config.Cfg == nil {
+		return true
+	}
+	if strings.EqualFold(config.Cfg.Env, "test") {
+		return true
+	}
+	return config.Cfg.QwenAPIKey == ""
 }
