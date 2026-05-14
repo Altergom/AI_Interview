@@ -1,13 +1,22 @@
 interface AudioIndicatorProps {
   isRecording: boolean;
+  /** 0-255 音量值，来自 AnalyserNode */
+  audioLevel?: number;
 }
 
-export const AudioIndicator = ({ isRecording }: AudioIndicatorProps) => {
+export const AudioIndicator = ({ isRecording, audioLevel = 0 }: AudioIndicatorProps) => {
+  // 将 0-255 映射到 scale 1.0–1.5
+  const scale = isRecording ? 1 + (audioLevel / 255) * 0.5 : 1;
+
   return (
     <div className="flex items-center justify-center">
-      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
-        isRecording ? 'bg-red-100 animate-pulse' : 'bg-gray-100'
-      }`}>
+      {/* 外圈：随音量动态缩放 */}
+      <div
+        className={`w-16 h-16 rounded-full flex items-center justify-center transition-transform duration-75 ${
+          isRecording ? 'bg-red-100' : 'bg-gray-100'
+        }`}
+        style={{ transform: `scale(${scale})` }}
+      >
         <svg
           className={`w-8 h-8 ${isRecording ? 'text-red-600' : 'text-gray-400'}`}
           fill="currentColor"

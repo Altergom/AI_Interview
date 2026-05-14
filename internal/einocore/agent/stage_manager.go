@@ -1,20 +1,18 @@
 package agent
 
 import (
-	"ai_interview/internal/config"
 	"context"
 	"fmt"
-	"github.com/cloudwego/eino-ext/components/model/qwen"
+
 	"github.com/cloudwego/eino/adk"
+
+	"ai_interview/internal/llm"
 )
 
 func NewManager() (*adk.ChatModelAgent, error) {
 	ctx := context.Background()
-	model, err := qwen.NewChatModel(ctx, &qwen.ChatModelConfig{
-		APIKey:  config.Cfg.QwenAPIKey,
-		BaseURL: config.Cfg.QwenBaseURL,
-		Model:   config.Cfg.Manager,
-	})
+
+	model, err := llm.Registry.NewChatModel(ctx, llm.RoleManager)
 	if err != nil {
 		return nil, fmt.Errorf("[manager]new chat model: %w", err)
 	}

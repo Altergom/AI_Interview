@@ -163,3 +163,77 @@ export interface SSEErrorEvent {
   code: number;
   message: string;
 }
+
+// ─── WebSocket 消息类型（替换 SSE）────────────────────────────────────────────
+
+// 上行消息类型
+export type WSUpMsgType = 'control' | 'code_submit';
+
+// 下行消息类型
+export type WSDownMsgType =
+  | 'asr_partial'
+  | 'asr_final'
+  | 'llm_token'
+  | 'tts_audio'
+  | 'stage_change'
+  | 'error'
+  | 'report_ready';
+
+// 上行：通用包装（音频帧直接发二进制帧，不走此结构）
+export interface WSUpMsg<T = unknown> {
+  type: WSUpMsgType;
+  payload?: T;
+}
+
+// 上行：控制指令
+export interface WSControlPayload {
+  /** start | pause | resume | stop */
+  action: 'start' | 'pause' | 'resume' | 'stop';
+}
+
+// 上行：代码提交
+export interface WSCodeSubmitPayload {
+  language: string;
+  code: string;
+}
+
+// 下行：通用包装
+export interface WSDownMsg<T = unknown> {
+  type: WSDownMsgType;
+  payload?: T;
+}
+
+// 下行：ASR 中间结果
+export interface WSASRPartialPayload {
+  text: string;
+}
+
+// 下行：ASR 最终结果
+export interface WSASRFinalPayload {
+  text: string;
+  turn_id: string;
+}
+
+// 下行：LLM 流式 token
+export interface WSLLMTokenPayload {
+  token: string;
+  turn_id: string;
+}
+
+// 下行：阶段切换
+export interface WSStageChangePayload {
+  /** intro | questioning | closing | end */
+  stage: InterviewStage | 'end';
+  questions_asked: number;
+}
+
+// 下行：错误
+export interface WSErrorPayload {
+  code: number;
+  message: string;
+}
+
+// 下行：报告就绪
+export interface WSReportReadyPayload {
+  interview_id: string;
+}

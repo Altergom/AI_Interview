@@ -12,12 +12,21 @@ type Config struct {
 	HTTPAddr string
 
 	// PostgreSQL
-	PostgresDSN string
+	PostgresDSN       string
+	PGMaxOpenConns    int           // 最大打开连接数，默认 25
+	PGMaxIdleConns    int           // 最大空闲连接数，默认 5
+	PGConnMaxLifetime time.Duration // 连接最大存活时间，默认 30m
+	PGConnMaxIdleTime time.Duration // 连接最大空闲时间，默认 5m
 
 	// Redis
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
+	RedisAddr         string
+	RedisPassword     string
+	RedisDB           int
+	RedisPoolSize     int           // 连接池大小，默认 10
+	RedisMinIdleConns int           // 最小空闲连接数，默认 2
+	RedisDialTimeout  time.Duration // 连接超时，默认 5s
+	RedisReadTimeout  time.Duration // 读超时，默认 3s
+	RedisWriteTimeout time.Duration // 写超时，默认 3s
 
 	// 消息队列
 	MQBrokerURL              string
@@ -62,7 +71,26 @@ type Config struct {
 	TTSModel string // TTS 模型名称
 	TTSVoice string // TTS 音色
 
+	// Milvus 向量数据库
+	MilvusAddr       string // host:port，默认 127.0.0.1:19530
+	MilvusCollection string // 题库向量集合名，默认 bank_questions_vec
+
+	// Elasticsearch
+	ESAddrs    []string // 节点地址列表，逗号分隔
+	ESUsername string
+	ESPassword string
+	ESIndex    string // 题库 ES 索引名，默认 bank_questions
+
+	// Ollama（本地模型，可选）
+	OllamaBaseURL    string // 默认 http://127.0.0.1:11434
+	OllamaEmbedModel string // embedding 模型，默认 nomic-embed-text
+	OllamaChatModel  string // chat 模型，默认 qwen3:8b
+
 	// TTL：可由 RESUME_REDIS_TTL、INTERVIEW_STATE_TTL 等 duration 字符串覆盖
 	ResumeRedisTTL    time.Duration
 	InterviewStateTTL time.Duration
+
+	// Skill 出题模块
+	// SkillsDir SKILL.md 所在父目录的绝对路径，默认 "internal/einocore/skills"（相对项目根）
+	SkillsDir string
 }

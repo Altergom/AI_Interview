@@ -1,433 +1,144 @@
-# AI Interview TODO List
+# AI Interview TODO 总索引
 
-> 按模块拆分的开发任务清单，每个任务包含明确的输入、输出和技术要点，方便 AI Coding 辅助实现。
-
----
-
-## 前端层（React Frontend）
-
-### WebRTC / 音视频采集
-- [ ] 使用 `getUserMedia` 采集麦克风音频流
-- [ ] 使用 `getUserMedia` 采集摄像头视频流
-- [ ] 实现设备检测功能（麦克风+摄像头权限测试）
-- [ ] 集成 VAD（语音活动检测），判断用户停止说话
-- [ ] 音频分片，通过 WebRTC 或 AudioWorklet 实时传输至后端
-- [ ] 视频流实时传输至后端（或录制后上传 S3）
-- [ ] 设备权限异常处理（用户拒绝授权、设备不存在）
-
-### SSE Client
-- [ ] 建立 SSE 长连接，携带 `interview_id` 和 JWT token
-- [ ] 断线自动重连，重连时恢复面试状态
-- [ ] 接收文字流，实时渲染对话记录
-- [ ] 接收 TTS 音频流，使用 Web Audio API 流式播放
-
-### 代码编辑器
-- [ ] 集成 Monaco Editor
-- [ ] 支持语言切换（Java / Python / Go / C++）
-- [ ] 实现提交按钮，HTTP POST 上传 `{code, interview_id, question_id}`
-- [ ] 算法阶段显示编辑器，其他阶段隐藏
-
-### 页面与路由
-- [ ] Index 首页：提供"登录/注册"和"游客体验"两个入口
-- [ ] 登录/注册页：用户认证（可选）
-- [ ] 简历信息页：表单式栏框，支持手动填写或上传 PDF 自动填充
-- [ ] 岗位选择页：选择面试岗位（Golang/Java/前端/测试等）
-- [ ] 方向选择页：选择面试方向（软件开发/云平台运维/Agent开发等）
-- [ ] 准备页面：测试麦克风和摄像头，设备检测失败可重试或退出
-- [ ] 面试间页：左侧对话记录 + 右侧代码编辑器（算法阶段）+ 顶部阶段进度
-- [ ] 报告生成页：显示"报告生成中"等待状态，可显示预估时间
-- [ ] 报告页：展示多维度评分雷达图 + 优劣势总结
-- [ ] 问卷页：逐轮展示 ASR 文本，用户对每轮打标 good/bad + 文字反馈
-- [ ] 结束页：感谢语 + "再来一次"按钮 + 报告链接（如果已生成）
+> 项目级开发任务清单。本文件是入口，包含跨版本的**设计决策、错误码体系、禁止事项**。具体任务清单按版本拆分到三个子文件。
 
 ---
 
-## 网关层（Hertz Server）
+## 版本路线图
 
-- [ ] 初始化 Hertz 服务，配置路由
-- [ ] 实现 HAuth 中间件，JWT 鉴权（支持游客 token）
-- [ ] 实现 SSE 端点 `GET /interview/stream`，维护长连接
-- [ ] 实现 HTTP POST 端点 `POST /interview/code/submit`，接收代码提交
-- [ ] 实现 HTTP POST 端点 `POST /device/check`，设备检测
-- [ ] 实现 HTTP POST 端点 `POST /resume/parse`，简历解析
-- [ ] 实现 HTTP POST 端点 `POST /resume/submit`，简历提交
-- [ ] 实现 HTTP POST 端点 `POST /interview/config`，岗位方向配置
-- [ ] 实现 Request Dispatcher，根据请求类型通过 Kitex RPC 转发至对应服务
-- [ ] 全局错误处理与日志中间件
+| 版本 | 目标 | 文件 |
+|---|---|---|
+| **v1 — MVP** | 跑通一次完整面试：游客上传简历 → AI 出题 → 语音面试 → 拿报告 → 提交问卷 | [todo-v1.md](./todo-v1.md) |
+| **v2 — 好用** | 体验完善 + SFT 数据闭环 + 文字面试 + 多 Provider 运行时切换 | [todo-v2.md](./todo-v2.md) |
+| **v3 — 全产品** | 招聘场景 + 用户面经 ChatBot + 监控 + 运营后台 | [todo-v3.md](./todo-v3.md) |
 
 ---
 
-## 业务服务层
+## 设计决策与避坑记录
 
-### Interview Service
-- [ ] 定义 Kitex RPC IDL（创建面试、推进面试、结束面试）
-- [ ] 实现 `CreateInterview`：初始化面试状态写入 Redis，关联 user_id 和 resume
-- [ ] 实现 `ProcessTurn`：接收 ASR 文本，调用 Eino Core Graph，返回 AI 回复
-- [ ] 实现 `SubmitCode`：接收代码，转发至 Eino Core Code Judge Agent
-- [ ] 实现 `FinishInterview`：更新面试状态，向 MQ 发布 `interview_finished` 消息
-- [ ] 面试状态写入 Redis，key: `interview:{interview_id}:state`
-- [x] 定义面试状态与阶段领域模型（`InterviewState` / `InterviewStage`，与下方 JSON 一致）
+> 对标项目 `interview-guide`（Java 实现）已踩过的坑 + 我方架构决策。**所有新代码必须遵守**。
 
-**Redis 面试状态结构**
-```json
-{
-  "interview_id": "xxx",
-  "stage": "questioning",
-  "questions_asked": 3,
-  "current_question_followups": 1,
-  "started_at": "2024-01-01T10:00:00Z"
+### 1. 音频传输：WebSocket 全双工（不再用 HTTP per-turn）
+
+- **原方案**：前端 VAD 截断 → `POST /v1/interview/audio` 整段上传 → HTTP ASR
+- **新方案**：前端流式 PCM → `WS /v1/interview/ws/{interview_id}` → 服务端 server-VAD + 流式 ASR/LLM/TTS
+- **收益**：首包延迟 200-400ms（对标 Qwen3 实时模型），告别 3-5s 等待
+- **影响**：handler 层重写 / `useAudio.ts` 重写 / `qwen_asr.go` `qwen_tts.go` 改 WebSocket 实现
+
+### 2. 出题数据源：Milvus + ES 多路召回
+
+- Skill markdown 定义考察范围；**向量召回**走 Milvus，**关键词/标签召回**走 Elasticsearch，结果 RRF 融合
+- 题库表保留 `tags`、`related_concepts`、`followup_question_ids`，PgSQL **只存结构化元数据**，不存向量
+- Milvus 集合：`bank_questions_vec`（1024 维，COSINE，IVF_FLAT）
+- ES 索引：`bank_questions`（分词 + 标签 filter）
+- 异步写入：题目入库后由 Worker 同步写 Milvus + ES，PgSQL 只改元数据状态字段
+
+### 3. 多 Provider：v1 编译期静态、v2 运行时动态
+
+- **v1**：从 `.env` 读 Provider 配置，重启生效
+- **v2**：设置页 + 落盘 `~/.ai-interview/llm-providers.yml` + reload 接口
+
+### 4. 评估引擎：统一管道（文字 + 语音共用）
+
+- 对标项目踩坑：先各做一套，后期重构成 `UnifiedEvaluationService`
+- **新方案**：从 day 1 抽象 `EvaluationPipeline` 接口
+
+```go
+type EvaluationPipeline interface {
+    BatchScore(ctx context.Context, turns []Turn) ([]DimensionScore, error)  // 分批评估
+    Aggregate(ctx context.Context, scores []DimensionScore) (Report, error)  // 二次汇总
+    Fallback(err error) Report                                               // 降级兜底
 }
 ```
 
----
+- `Turn` 结构同时支持 `text` 和 `audio_transcript` 字段，输入归一化
 
-### User / Resume Service
+### 5. Worker 任务状态机
 
-#### 技术方案（已确认）
-- **IDL 设计**：单一 UserService，PDF 通过 S3 预签名 URL 上传（避免大文件 RPC 传输）
-- **JWT 管理**：仅 Access Token（60分钟有效期），游客转正重新签发 Token
-- **错误处理**：统一错误码 + BizError，Hertz 网关统一映射到 HTTP 响应
-- **游客清理**：独立 Cleanup Worker（`cmd/cleanup_worker`），每小时执行一次
-- **简历解析**：降级策略，LLM 失败返回空结构体，前端显示空表单
-- **数据持久化**：**PostgreSQL 主存储 + Redis 按需缓存**（1小时TTL）
-  - 提交简历：存 PostgreSQL
-  - 获取简历：先查 Redis，miss 则查 PG 并回填
-  - 面试开始时：预热缓存
-- **服务部署**：初期单体部署（Hertz 内嵌 Service 逻辑），后期拆分微服务
+- 状态：`pending → processing → completed / failed`，前端可见
+- 处理前预校验实体存在（被删则 ACK 丢弃）
+- v2 加死信队列：失败 ≥ 3 次入 DLX，前端显示「重试」按钮
 
-#### 实现任务
-- [x] 定义结构化简历领域模型（`StructuredResume` 等，`internal/domain`）
-- [ ] 定义 Kitex RPC IDL（`idl/user_service.thrift`）
-  - 注册、登录、游客模式
-  - 简历解析（传 S3 Key，不传二进制内容）
-  - 简历提交、获取
-- [ ] 实现 JWT 工具（`internal/auth/jwt.go`）
-  - `GenerateToken(userID, username, isGuest, expMinutes)`
-  - `ValidateToken(tokenString)`
-  - Secret 从环境变量 `JWT_SECRET` 读取
-- [ ] 实现密码加密（`internal/auth/password.go`）
-  - 使用 `bcrypt.GenerateFromPassword`
-- [ ] 实现用户注册/登录（`internal/service/user/auth.go`）
-  - 注册：检查邮箱 → 密码加密 → 插入 PostgreSQL → 签发 JWT
-  - 登录：查询用户 → 验证密码 → 签发 JWT
-- [ ] 实现游客模式（`internal/service/user/guest.go`）
-  - 生成 `guest_` 前缀 ID
-  - 插入 PostgreSQL（`is_guest = TRUE`）
-  - 签发 24 小时有效 Token
-- [ ] 实现 S3 预签名 URL 生成（`internal/service/user/upload.go`）
-  - `GetUploadURL()` 返回 5 分钟有效的预签名 URL
-  - 前端直接上传到 S3
-- [ ] 实现简历解析（`internal/service/user/resume.go`）
-  - PDF 文本提取：使用 `pdfcpu` 库
-  - LLM 结构化提取：调用 Doubao/GPT-4o
-  - 容错：LLM 失败返回空结构体
-  - 备份原始 PDF 到 S3
-- [ ] 实现简历提交（`internal/service/user/resume.go`）
-  - 存入 PostgreSQL `resumes` 表（主存储）
-  - **不存 Redis**（按需缓存）
-- [ ] 实现 `GetResume`（`internal/service/user/resume.go`）
-  - 先查 Redis（`resume:{user_id}`，TTL 1小时）
-  - Redis miss → 查 PostgreSQL → 回填 Redis
-- [ ] 实现游客数据清理 Worker（`cmd/cleanup_worker/main.go`）
-  - 每小时执行一次
-  - 删除 24 小时前创建的游客用户（PostgreSQL）
-  - 清理 Redis 中的游客简历（`resume:guest_*`）
-  - **不清理**面试记录（用于数据分析）
-- [ ] 创建 PostgreSQL 表
-  ```sql
-  CREATE TABLE users (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      username VARCHAR(100) NOT NULL,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      is_guest BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
-  );
-  
-  CREATE TABLE resumes (
-      user_id UUID PRIMARY KEY,
-      data JSONB NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
-  );
-  
-  CREATE INDEX idx_users_email ON users(email);
-  CREATE INDEX idx_users_is_guest ON users(is_guest);
-  ```
+### 6. LLM 限流（v1 必须）
 
-#### 并发控制（内存优化）
-- [ ] 实现文件上传并发限制（信号量，最多 5 并发）
-- [ ] 实现文件大小限制（Hertz 中间件，最大 3MB）
-- [ ] 实现流式 PDF 处理（避免全部加载到内存）
+- Redis Lua 滑动窗口
+- v1：`IP`（10 次/分钟）+ `USER`（30 次/分钟）
+- v2：补 `GLOBAL` 维度
+- 关键端点：`/v1/interview/ws/*`、`/v1/interview/code/submit`、`/v1/resume/parse`、`/v1/rag/query`
 
-#### 相关文档
-- 详细实现方案：`C:\Users\25422\.claude\plans\fuzzy-munching-gosling.md`
-- 内存优化方案：`docu/内存优化方案.md`
+### 7. 结构化输出强制重试
+
+- 所有 JSON 输出必须经 `StructuredOutputInvoker`
+- 解析失败自动重试 3 次 + 降级
+- 影响：`evaluator`、`response_analyzer`、`question_selector`、`code_judge`、简历解析
+
+### 8. 简历去重（SHA-256 内容哈希）
+
+- `resumes` 表加 `content_hash` 列，上传时先查重，命中直接返回已分析结果
+- TTL：游客简历 24h，登录用户永久
+
+### 9. 回声防护与音色（已知遗留）
+
+- 对标项目未解决的痛点：无耳机回声泄漏、TTS 音色单一、弱网音频断续
+- **我方策略**：
+  - v1 接受同样限制，前端 UI 提示「建议佩戴耳机」+ 客户端 AEC（`echoCancellation: true`）
+  - v2 探索：客户端 VAD 降噪、多音色支持
+
+### 10. 事务规范
+
+- **禁止**在事务内调用 LLM / S3 / WebSocket（占用 DB 连接，长事务风险）
+
+### 11. 用户面经 ChatBot：Milvus + ES 多路召回
+
+- **方案**：Milvus（向量语义检索）+ ES（关键词/标签过滤）RRF 融合，PostgreSQL 只存文档元数据和分块元信息
+- 知识库分块 embedding 写 Milvus；文档内容写 ES 全文索引
+- v1 RAG 出题复用同一套 Milvus+ES 基建，不重复造轮子
+- v3 独立面经 ChatBot，增量接入多 KB 关联检索
 
 ---
 
-### Record / Storage Service
-- [x] 定义对话轮次 `InterviewTurn` 领域类型（`internal/domain`）
-- [ ] 定义 Kitex RPC IDL（存储对话轮次、查询面试记录）
-- [ ] 实现 `SaveTurn`：将每轮 ASR 文本存入 PostgreSQL `interview_turns` 表
-- [ ] 实现 `GetInterviewRecord`：按 interview_id 返回完整对话记录
-- [ ] 音频文件上传至 S3，路径: `/audio/{interview_id}/{turn_id}.wav`
-- [ ] 视频文件上传至 S3，路径: `/video/{interview_id}/full.mp4`
+## 错误码体系（完整 10 域）
 
-**PostgreSQL interview_turns 表结构**
-```sql
-CREATE TABLE interview_turns (
-  id UUID PRIMARY KEY,
-  interview_id UUID NOT NULL,
-  turn_id VARCHAR(10) NOT NULL,
-  stage VARCHAR(50) NOT NULL,
-  question TEXT,
-  user_answer TEXT,
-  asr_raw TEXT,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
+| 域 | 范围 | 示例 |
+|----|------|------|
+| 通用 | 1xxx | `BAD_REQUEST(1400)` / `NOT_FOUND(1404)` / `UNAUTHORIZED(1401)` |
+| 简历 | 2xxx | `RESUME_NOT_FOUND(2001)` / `RESUME_PARSE_FAILED(2002)` / `RESUME_DUPLICATE(2003)` |
+| 面试 | 3xxx | `INTERVIEW_SESSION_NOT_FOUND(3001)` / `INTERVIEW_STAGE_INVALID(3002)` |
+| 存储 | 4xxx | `STORAGE_UPLOAD_FAILED(4001)` / `STORAGE_NOT_FOUND(4002)` |
+| 导出 | 5xxx | `EXPORT_PDF_FAILED(5001)` |
+| 知识库 | 6xxx | `KNOWLEDGE_BASE_NOT_FOUND(6001)` / `VECTOR_INDEX_FAILED(6002)` |
+| AI 服务 | 7xxx | `AI_SERVICE_TIMEOUT(7002)` / `AI_STRUCTURED_OUTPUT_FAILED(7003)` |
+| 限流 | 8xxx | `RATE_LIMIT_EXCEEDED(8001)` |
+| 面试日程 | 9xxx | `INTERVIEW_SCHEDULE_NOT_FOUND(9001)` |
+| 语音面试 | 10xxx | `VOICE_SESSION_NOT_FOUND(10001)` / `WS_CONNECTION_FAILED(10002)` |
 
----
+实现要求（v1）：
 
-### Report Worker
-- [x] 定义评分报告 `Report` 领域类型（`internal/domain`）
-- [ ] 消费 MQ `interview_finished` 消息
-- [ ] 调用 Record Service 拉取完整对话记录
-- [ ] 构造评分 prompt，调用 LLM 生成多维度评分报告
-- [ ] 评分结果存 PostgreSQL `reports` 表
-- [ ] 报告生成完成后通过 SSE 或 WebSocket 推送通知前端
-
-**PostgreSQL reports 表结构**
-```sql
-CREATE TABLE reports (
-  id UUID PRIMARY KEY,
-  interview_id UUID NOT NULL,
-  knowledge_depth INT,
-  expression INT,
-  problem_solving INT,
-  code_quality INT,
-  stress_response INT,
-  summary TEXT,
-  weak_points JSONB,
-  strong_points JSONB,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
+- [ ] 定义 `internal/errors/code.go`：ErrorCode 常量表
+- [ ] 定义 `internal/errors/biz_error.go`：`type BizError struct { Code ErrorCode; Message string; Cause error }`
+- [ ] 全局错误处理中间件：`BizError` → `Result.error(code, message)`
+- [ ] 禁止使用 `errors.New()` / `fmt.Errorf()` 在 service / handler 层裸抛业务错误
 
 ---
 
-### 问卷系统
-- [x] 定义问卷标注与 SFT/JSONL 行结构（`QuestionnaireResult`、`SFTMessage` 等）
-- [ ] 定义问卷提交 API `POST /questionnaire/submit`
-- [ ] 接收用户对每轮对话的标注（good/bad + 文字反馈）
-- [ ] 存入 PostgreSQL `questionnaire_results` 表
+## 禁止事项（写进 CLAUDE.md，编码必须遵守）
 
-**PostgreSQL questionnaire_results 表结构**
-```sql
-CREATE TABLE questionnaire_results (
-  id UUID PRIMARY KEY,
-  interview_id UUID NOT NULL,
-  turn_id VARCHAR(10) NOT NULL,
-  quality VARCHAR(10) NOT NULL, -- 'good' | 'bad'
-  feedback TEXT,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-- [ ] 实现定期 job，筛选 `quality='good'` 的数据，生成 JSONL 文件上传 S3
-
-**JSONL 格式**
-```json
-{
-  "messages": [
-    {"role": "system", "content": "你是一个技术面试官..."},
-    {"role": "assistant", "content": "面试官的问题"},
-    {"role": "user", "content": "用户的回答"},
-    {"role": "assistant", "content": "面试官的追问"}
-  ],
-  "quality": "good",
-  "user_feedback": "追问很有启发"
-}
-```
+- 禁止在事务内调用 LLM / S3 / WebSocket（长事务占用 DB 连接）
+- 禁止裸抛 `errors.New(...)` / `fmt.Errorf(...)` 作为业务错误，必须用 `BizError` + `ErrorCode`
+- 禁止直接返回 Entity / domain 给前端，必须经 DTO 转换
+- 禁止 LLM JSON 输出不走 `StructuredOutputInvoker`（无重试 = 必崩）
+- 禁止硬编码 Provider Key / API Endpoint，统一走 `LlmProviderRegistry`
+- 禁止 `log.Errorf("xx: %v", err.Error())` —— 必须把 err 作为最后一个 arg 保留堆栈
+- 禁止全局 unbounded goroutine pool，必须用受限 worker pool 防 OOM
+- 禁止跳过测试合并主分支
+- 禁止提交 `.env` 文件
+- 禁止使用 `hlog` 或 `slog`，统一走 `ai_interview/internal/log` 包
 
 ---
 
-## AI层（Eino Core）
+## 文档约定
 
-- [x] 引入 Eino 依赖、`compose` 恒等链占位，及 SFT→`schema.Message` 桥接（`internal/einocore`）
-
-### ASR Node
-- [ ] 接入流式 ASR SDK（火山引擎 / 阿里云）
-- [ ] 实现音频流分片输入，实时输出文字
-- [ ] 集成 VAD，检测说话结束，输出完整句子至 Router Node
-- [ ] 异常处理：ASR 识别失败时返回错误提示
-
----
-
-### Router Node
-- [ ] 从 Redis 读取当前面试状态
-- [ ] 实现阶段切换逻辑：
-
-```
-intro → questioning:    自我介绍结束（VAD检测停止说话）
-questioning → algorithm: questions_asked >= N（可配置）
-algorithm → closing:    代码提交且追问结束
-closing → end:          用户说结束
-```
-
-- [ ] 实现题目状态机：
-
-```
-出题 → 等待回答 → 判断追问（followups < 2）→ 追问
-                              ↓（followups >= 2）
-                           关闭当前题 → RAG检索 → 出下一题
-```
-
-- [ ] 判断是否为代码提交事件，触发 Code Judge Agent
-- [ ] 更新 Redis 面试状态
-
----
-
-### 信息提取 Agent
-- [ ] 实现简历解析：PDF 文本 → 结构化 JSON（技术栈、项目、实习、教育）
-- [ ] 实现自我介绍补充提取：ASR 文本 → 提取额外信息 → merge 进 Redis 上下文
-- [ ] prompt 指定输出严格 JSON 格式，做好解析异常处理
-
----
-
-### RAG 检索
-- [x] 定义题库单条 `BankQuestion` 领域类型（`internal/domain`）
-- [ ] 初始化 VectorDB（Milvus / Qdrant），导入八股题库
-- [ ] 题目 embedding，按技术标签建立索引
-- [ ] 实现检索接口：输入用户技术栈 → 返回 Top-K 候选题目
-- [ ] 题库维护脚本：支持新增、更新、删除题目
-
-**题库数据结构**
-```json
-{
-  "question_id": "xxx",
-  "question": "讲一下HashMap的扩容机制",
-  "tags": ["Java", "集合", "中等"],
-  "standard_answer": "...",
-  "follow_up_hints": [
-    "线程安全怎么处理",
-    "和ConcurrentHashMap区别"
-  ]
-}
-```
-
----
-
-### Interview Agent
-- [ ] 设计提问阶段 system prompt（面试官角色、追问方向参考 follow_up_hints）
-- [ ] 设计反问阶段 system prompt（公司面试官角色扮演）
-- [ ] 实现对话 history 管理：从 Redis 读取 → 拼接 → 调用 LLM → 回写 Redis
-- [ ] 接收 Code Judge Agent 结构化结果，根据 `correctness` 决定追问方向：
-    - `correctness=true` → 追问复杂度优化
-    - `correctness=false` → 引导用户找 bug
-- [ ] 对话 history 超长时做裁剪（保留 system prompt + 最近 N 轮）
-
----
-
-### Code Judge Agent
-- [ ] 接收代码文本 + 题目信息
-- [ ] 设计评估 prompt，指定输出结构化 JSON
-- [ ] 返回结构化评估结果至 Interview Agent
-- [x] 定义评估结果领域模型 `CodeJudgeResult`（与约定 JSON 对齐）
-
-**输出结构**
-```json
-{
-  "correctness": true,
-  "time_complexity": "O(n)",
-  "space_complexity": "O(1)",
-  "issues": ["边界条件未处理"]
-}
-```
-
----
-
-### LLM Node
-- [ ] 接入 Doubao API，开启 streaming 模式
-- [ ] 第一个 token 输出时立即触发 TTS Node（流水线并行）
-- [ ] 备用 GPT-4o 接入，支持快速切换
-
----
-
-### TTS Node
-- [ ] 接入流式 TTS SDK（火山引擎 / 阿里云）
-- [ ] 接收 LLM 流式文字，实时合成音频
-- [ ] 通过 SSE 将音频流推送至前端
-
----
-
-## 存储层
-
-### PostgreSQL
-- [x] 初始化数据库，创建所有表（users / interviews / interview_turns / reports / questionnaire_results）
-- [ ] 配置连接池
-- [x] 编写 migration 脚本
-
-### Redis
-- [ ] 初始化 Redis 连接
-- [x] 定义 Redis Key 与命名方法（`internal/storage/redis/keys`）
-- [ ] 封装面试状态读写方法
-- [ ] 封装对话 history 读写方法（list 结构，append + 裁剪）
-- [ ] 封装结构化简历读写方法
-- [ ] 封装面试配置读写方法（岗位+方向）
-- [ ] 封装游客数据读写方法（TTL 24小时）
-- [x] 配置合理 TTL（默认 + 环境变量 `RESUME_REDIS_TTL` / `INTERVIEW_STATE_TTL`）
-
-### S3 / Object Storage
-- [x] 定义业务对象路径（简历/音频/视频/SFT 前缀，`internal/storage/s3/paths`）
-- [ ] 配置 S3 客户端
-- [ ] 实现简历 PDF 上传方法（用于备份原始文件）
-- [ ] 实现音频文件上传方法
-- [ ] 实现视频文件上传方法
-- [ ] 实现 JSONL 文件上传方法
-- [ ] 配置 Bucket 权限策略
-
----
-
-## 消息队列
-
-- [x] 选型并初始化 RabbitMQ（本地 `docker-compose`）
-- [x] 定义 Topic: `interview_finished`（`internal/mq` 常量与事件体）
-- [ ] Interview Service 实现 Producer，面试结束时发布消息
-- [ ] Report Worker 实现 Consumer，消费消息触发报告生成
-- [ ] 消息消费失败时实现重试机制
-
----
-
-## 基础设施
-
-- [x] 编写 Docker Compose，本地一键启动所有服务（PostgreSQL / Redis / S3 / MQ）
-- [x] 配置各服务环境变量（`.env` + `godotenv` + `internal/config` 集中加载）
-- [x] 编写各服务 Dockerfile（当前根目录 `Dockerfile` 构建 `cmd/api`；后续 Kitex/Hertz/Worker 可按同模式增加镜像）
-- [x] 配置日志采集（`LOG_FORMAT=json|text` + `slog` 输出 stdout，便于接入 Loki/ELK/云采集）
-- [x] 配置健康检查端点（`GET /health`、`/ready` 及 `healthz`/`readyz` 别名，`docker-compose` 已接 `api` 服务 healthcheck）
-
----
-
-## 开发顺序建议
-
-```
-1. 存储层初始化（PostgreSQL / Redis / S3）
-2. User/Resume Service（用户注册登录、游客模式、简历解析、简历提交）
-3. 信息提取 Agent（简历解析）
-4. 前端基础页面（Index、登录/注册、简历信息页、岗位方向选择）
-5. 设备检测功能（前端 + 后端接口）
-6. ASR Node + TTS Node（语音链路跑通）
-7. 视频采集与存储（前端 + S3 上传）
-8. Interview Agent + LLM Node（基础对话跑通）
-9. Router Node（阶段状态机）
-10. RAG 检索 + 题库导入
-11. Code Judge Agent + 代码编辑器前端
-12. Record Service + 问卷系统
-13. MQ + Report Worker（异步报告生成）
-14. 报告生成页 + 报告展示页
-15. 前端完整页面联调
-16. 流式 pipeline 联调（ASR→LLM→TTS 延迟优化）
-```
+- 各 v 文件**只列任务**，规范统一在本文件
+- 已完成项 `[x]` 保留，归入 v1 对应模块
+- 跨版本依赖在子文件开头「前置依赖」小节注明
+- 任务粒度：单条 `[ ]` 应能在 0.5-2 天内完成

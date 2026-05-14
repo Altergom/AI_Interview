@@ -32,7 +32,7 @@ func Load(envFiles ...string) error {
 
 	Cfg, err = parseFromEnv()
 	if err != nil {
-		return fmt.Errorf("[load]config", "err", err)
+		return fmt.Errorf("[config] load: %w", err)
 	}
 
 	return nil
@@ -70,6 +70,18 @@ func getBool(key string, def bool) (bool, error) {
 	return b, nil
 }
 
+// splitComma 按逗号分割并 trim 空白，用于多地址配置（如 ES_ADDRS）。
+func splitComma(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 func getDurationOrDefault(key string, def time.Duration) (time.Duration, error) {
 	s := strings.TrimSpace(os.Getenv(key))
 	if s == "" {
@@ -97,6 +109,46 @@ func parseFromEnv() (*Config, error) {
 		return nil, err
 	}
 
+	// PostgreSQL 连接池
+	pgMaxOpen, err := getInt("PG_MAX_OPEN_CONNS", 25)
+	if err != nil {
+		return nil, err
+	}
+	pgMaxIdle, err := getInt("PG_MAX_IDLE_CONNS", 5)
+	if err != nil {
+		return nil, err
+	}
+	pgConnMaxLifetime, err := getDurationOrDefault("PG_CONN_MAX_LIFETIME", 30*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	pgConnMaxIdleTime, err := getDurationOrDefault("PG_CONN_MAX_IDLE_TIME", 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	// Redis 连接池
+	redisPoolSize, err := getInt("REDIS_POOL_SIZE", 10)
+	if err != nil {
+		return nil, err
+	}
+	redisMinIdleConns, err := getInt("REDIS_MIN_IDLE_CONNS", 2)
+	if err != nil {
+		return nil, err
+	}
+	redisDialTimeout, err := getDurationOrDefault("REDIS_DIAL_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	redisReadTimeout, err := getDurationOrDefault("REDIS_READ_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	redisWriteTimeout, err := getDurationOrDefault("REDIS_WRITE_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
 	accessMin, err := getInt("JWT_ACCESS_EXP_MIN", 60)
 	if err != nil {
 		return nil, err
@@ -113,15 +165,24 @@ func parseFromEnv() (*Config, error) {
 	}
 
 	return &Config{
-		Env:         get("APP_ENV", "development"),
-		LogLevel:    get("LOG_LEVEL", "info"),
-		LogFormat:   logFormat,
-		HTTPAddr:    get("HTTP_ADDR", ":8080"),
-		PostgresDSN: get("POSTGRES_DSN", ""),
+		Env:               get("APP_ENV", "development"),
+		LogLevel:          get("LOG_LEVEL", "info"),
+		LogFormat:         logFormat,
+		HTTPAddr:          get("HTTP_ADDR", ":8080"),
+		PostgresDSN:       get("POSTGRES_DSN", ""),
+		PGMaxOpenConns:    pgMaxOpen,
+		PGMaxIdleConns:    pgMaxIdle,
+		PGConnMaxLifetime: pgConnMaxLifetime,
+		PGConnMaxIdleTime: pgConnMaxIdleTime,
 
-		RedisAddr:     get("REDIS_ADDR", "127.0.0.1:6379"),
-		RedisPassword: get("REDIS_PASSWORD", ""),
-		RedisDB:       redisDB,
+		RedisAddr:         get("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisPassword:     get("REDIS_PASSWORD", ""),
+		RedisDB:           redisDB,
+		RedisPoolSize:     redisPoolSize,
+		RedisMinIdleConns: redisMinIdleConns,
+		RedisDialTimeout:  redisDialTimeout,
+		RedisReadTimeout:  redisReadTimeout,
+		RedisWriteTimeout: redisWriteTimeout,
 
 		MQBrokerURL:              get("MQ_BROKER_URL", ""),
 		MQTopicInterviewFinished: get("MQ_TOPIC_INTERVIEW_FINISHED", mq.TopicInterviewFinished),
@@ -160,7 +221,20 @@ func parseFromEnv() (*Config, error) {
 		TTSModel: get("TTS_MODEL", "qwen-tts-flash-realtime"),
 		TTSVoice: get("TTS_VOICE", "zhifeng_emo"),
 
+		MilvusAddr:       get("MILVUS_ADDR", "127.0.0.1:19530"),
+		MilvusCollection: get("MILVUS_COLLECTION", "bank_questions_vec"),
+
+		ESAddrs:    splitComma(get("ES_ADDRS", "http://127.0.0.1:9200")),
+		ESUsername: get("ES_USERNAME", ""),
+		ESPassword: get("ES_PASSWORD", ""),
+		ESIndex:    get("ES_INDEX", "bank_questions"),
+
+		OllamaBaseURL:    get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+		OllamaEmbedModel: get("OLLAMA_EMBED_MODEL", "nomic-embed-text"),
+		OllamaChatModel:  get("OLLAMA_CHAT_MODEL", "qwen3:8b"),
+
 		ResumeRedisTTL:    resumeTTL,
 		InterviewStateTTL: interviewTTL,
+		SkillsDir:         get("SKILLS_DIR", "internal/einocore/skills"),
 	}, nil
 }

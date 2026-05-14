@@ -1,0 +1,74 @@
+# AI Interview - Cursor Rules
+
+## 最高优先级
+
+- 修改代码前，先说明改动范围和思路，等开发者确认再执行
+- 新增依赖前，先告知包名和用途，等确认再安装
+- 遇到多种实现方案时，列出优劣后由开发者决策，不要自行选择
+- 不要自动重构与当前任务无关的代码
+- 每次对话结束时，在末尾列出本次所有修改过的文件路径
+
+## 项目信息
+
+全栈项目：前端 React + TypeScript + Vite（Zustand 状态管理），后端 Go（Hertz + Eino）。
+数据库：PostgreSQL + Redis + Milvus + Elasticsearch。
+
+后端目录：
+- `internal/handler/` — HTTP 路由层，只做参数校验和调用 service
+- `internal/service/` — 业务逻辑层
+- `internal/domain/` — 所有共享类型定义
+- `internal/storage/` — 存储层（postgres/redis/s3/milvus/es）
+- `internal/einocore/` — AI 编排（Eino Graph、Agent、Tools）
+- `internal/log/` — 统一日志包
+
+## 代码规范
+
+### 通用
+- 函数体不超过 80 行 / 60 语句
+- 函数圈复杂度不超过 15，参数不超过 4 个
+- 文件行数不超过 1000 行
+- 禁止魔法数字，使用命名常量
+- Go 中禁止用 `_` 丢弃 error，必须显式处理
+- 注释写"为什么"，不写"是什么"
+- 禁止硬编码凭据、SQL 拼接、弱加密（MD5/SHA1）
+
+### 后端分层
+- handler 层使用独立 DTO，不直接引用 domain 类型
+- service 层函数的输入和返回类型必须定义在 domain 包
+- 数据库操作只在 storage 层
+- 数据库操作统一使用 GORM，禁止裸写 SQL 字符串
+- 不要跨 service 文件调用私有函数
+- API 响应格式：`{ "success": true, "data": {}, "error": null }`
+- 敏感信息只从环境变量读取
+
+### 日志（后端）
+- 统一使用 `ai_interview/internal/log` 包，禁止直接使用 `hlog` 或 `slog`
+- 格式：`[组件名] 动作: 具体信息`
+- 业务层使用 `hlog.CtxInfof(ctx, ...)` 注入请求上下文
+
+### 前端
+- 组件函数式写法，禁止 class 组件
+- Props 必须有 TypeScript interface
+- 组件文件名 PascalCase，hooks 文件名 camelCase
+- 避免超过 2 层 props drilling
+
+## 测试
+
+- 新增功能必须附带测试
+- service 层覆盖率目标 80%+
+- Go 测试文件命名：`xxx_test.go`，与源文件同目录
+- 前端测试文件命名：`xxx.test.ts` / `xxx.spec.ts`
+
+## Git
+
+- 禁止直接向 `main` 和 `dev` 分支提交
+- 分支名以功能命名：`feat/xxx`、`fix/xxx`、`docs/xxx`
+- 分支合并后删除
+- Commit 格式：`<type>(<scope>): <描述>`，type 为 `feat|fix|refactor|test|docs|chore`
+
+## 禁止事项
+
+- 禁止直接修改数据库 schema，必须通过 migration 文件
+- 禁止前端硬编码 API 地址
+- 禁止提交 `.env` 文件
+- 禁止跳过测试合并到主分支

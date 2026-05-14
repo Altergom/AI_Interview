@@ -3,8 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/cloudwego/eino-ext/components/model/qwen"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/adk/prebuilt/supervisor"
 	"github.com/cloudwego/eino/components/tool"
@@ -12,49 +12,44 @@ import (
 
 	"ai_interview/internal/config"
 	"ai_interview/internal/einocore/tools"
+	"ai_interview/internal/llm"
 )
 
-func NewSupervisor() (adk.ResumableAgent, error) {
-	ctx := context.Background()
+// SupervisorConfig Supervisor 构造参数，外部依赖从 app 层注入。
+type SupervisorConfig struct {
+	SelectorCfg SelectorConfig
+}
 
-	model, err := qwen.NewChatModel(ctx, &qwen.ChatModelConfig{
-		APIKey:  config.Cfg.QwenAPIKey,
-		Model:   config.Cfg.Supervisor,
-		BaseURL: config.Cfg.QwenBaseURL,
-	})
+// NewSupervisor 创建面试 Supervisor Agent。
+// 所有外部依赖（Redis、SkillsDir）通过 cfg 注入，避免内部硬编码。
+func NewSupervisor(ctx context.Context, cfg SupervisorConfig) (adk.ResumableAgent, error) {
+	model, err := llm.Registry.NewChatModel(ctx, llm.RoleSupervisor)
 	if err != nil {
-		return nil, fmt.Errorf("[qwen]NewChatModel: %v", err)
+		return nil, fmt.Errorf("[supervisor] new chat model: %w", err)
 	}
 
-	// 创建 ASR/TTS Tool
+	// ASR/TTS Tool
+	// Mock 模式：APP_ENV=test 或 QWEN_API_KEY 未配置时使用 Mock，其余使用 Qwen WebSocket 实现
 	var asrService tools.ASRService
 	var ttsService tools.TTSService
-
-	// 开发环境：使用 Mock 服务
-	// 生产环境：使用千问服务
-	//useQwenService := false // 临时使用 Mock，实现千问后改为 true
-	useQwenService := true
-
-	if useQwenService {
-		asrService = tools.NewQwenASRService()
-		ttsService = tools.NewQwenTTSService()
-	} else {
+	if needsMock() {
 		asrService = tools.NewMockASRService()
 		ttsService = tools.NewMockTTSService()
+	} else {
+		asrService = tools.NewQwenASRService()
+		ttsService = tools.NewQwenTTSService()
 	}
 
 	asrTool, err := tools.NewASRTool(asrService)
 	if err != nil {
-		return nil, fmt.Errorf("[tools]NewASRTool: %v", err)
+		return nil, fmt.Errorf("[supervisor] new asr tool: %w", err)
 	}
-
 	ttsTool, err := tools.NewTTSTool(ttsService)
 	if err != nil {
-		return nil, fmt.Errorf("[tools]NewTTSTool: %v", err)
+		return nil, fmt.Errorf("[supervisor] new tts tool: %w", err)
 	}
 
-	// 创建 Supervisor Agent（配置 ASR/TTS Tool）
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	supervisorAgent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Name:        "supervisor",
 		Description: "面试流程监管者，负责协调各个子 Agent 和工具",
 		Instruction: `你是面试流程的监管者。
@@ -69,7 +64,7 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 - TTS: 将文字转为语音（当需要语音输出时使用）
 
 可用的子 Agent：
-- question_selector: 从题库选择合适的问题
+- question_selector: 根据候选人方向加载 Skill 规则，生成技术面试题
 - response_analyzer: 分析候选人的回答质量
 - stage_manager: 判断是否应该切换面试阶段
 
@@ -82,35 +77,41 @@ func NewSupervisor() (adk.ResumableAgent, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("[adk]NewChatModelAgent: %v", err)
+		return nil, fmt.Errorf("[supervisor] new chat model agent: %w", err)
 	}
 
-	// 创建子 Agent
-	selector, err := NewSelector()
+	// 子 Agent：selector 接受外部注入的 SelectorConfig
+	selector, err := NewSelector(ctx, cfg.SelectorCfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[supervisor] new selector: %w", err)
 	}
-	manager, err := NewManager()
+	mgr, err := NewManager()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[supervisor] new manager: %w", err)
 	}
 	analyzer, err := NewAnalyzer()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[supervisor] new analyzer: %w", err)
 	}
 
-	// 创建 Supervisor（配置子 Agent）
 	su, err := supervisor.New(ctx, &supervisor.Config{
-		Supervisor: agent,
-		SubAgents: []adk.Agent{
-			selector,
-			manager,
-			analyzer,
-		},
+		Supervisor: supervisorAgent,
+		SubAgents:  []adk.Agent{selector, mgr, analyzer},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("[supervisor]New: %v", err)
+		return nil, fmt.Errorf("[supervisor] supervisor.New: %w", err)
 	}
 
 	return su, nil
+}
+
+// needsMock 当 APP_ENV=test 或 QWEN_API_KEY 未配置时，使用 Mock ASR/TTS 服务。
+func needsMock() bool {
+	if config.Cfg == nil {
+		return true
+	}
+	if strings.EqualFold(config.Cfg.Env, "test") {
+		return true
+	}
+	return config.Cfg.QwenAPIKey == ""
 }
