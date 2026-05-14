@@ -77,55 +77,16 @@ func NewInterviewGraph(ctx context.Context, supervisor adk.ResumableAgent) (*Int
 
 // callSupervisor 调用 Supervisor（Graph 节点的实现）
 func (ig *InterviewGraph) callSupervisor(ctx context.Context, input GraphInput) (GraphOutput, error) {
-	// 1. 构建系统提示词（根据当前阶段）
-	systemPrompt := getSystemPrompt(input.Stage)
+	userMessage := resolveUserMessage(input)
+	messages := buildMessages(input, userMessage)
 
-	// 2. 构建消息列表（包含历史对话）
-	messages := make([]*schema.Message, 0)
-
-	// 添加系统提示词
-	messages = append(messages, schema.SystemMessage(systemPrompt))
-
-	// 添加历史对话（从 Context 中获取）
-	if input.Context != nil {
-		if history, ok := input.Context["history"].([]map[string]string); ok {
-			for _, msg := range history {
-				role := msg["role"]
-				content := msg["content"]
-
-				if role == "user" {
-					messages = append(messages, schema.UserMessage(content))
-				} else if role == "assistant" {
-					messages = append(messages, schema.AssistantMessage(content, nil))
-				}
-			}
-		}
-	}
-
-	// 3. 添加当前用户输入
-	var userMessage string
-	if len(input.AudioData) > 0 {
-		// 如果有音频数据，Supervisor 会调用 ASR Tool
-		userMessage = "[音频输入，Supervisor 将调用 ASR Tool 处理]"
-	} else {
-		userMessage = input.Text
-	}
-	messages = append(messages, schema.UserMessage(userMessage))
-
-	// 4. 调用 Supervisor
-	iter := ig.supervisor.Run(ctx, &adk.AgentInput{
-		Messages: messages,
-	})
-
-	// 5. 收集 Supervisor 的输出
+	iter := ig.supervisor.Run(ctx, &adk.AgentInput{Messages: messages})
 	var responseText string
 	for {
 		event, hasNext := iter.Next()
 		if !hasNext {
 			break
 		}
-
-		// 提取消息内容
 		if event.Output != nil && event.Output.MessageOutput != nil {
 			if event.Output.MessageOutput.Message != nil {
 				responseText += event.Output.MessageOutput.Message.Content
@@ -133,33 +94,51 @@ func (ig *InterviewGraph) callSupervisor(ctx context.Context, input GraphInput) 
 		}
 	}
 
-	// 6. 解析 Supervisor 的输出
-	// Supervisor 应该返回 JSON 格式：
-	// {
-	//   "response": "回复内容",
-	//   "need_tts": true/false,
-	//   "stage_action": "continue" | "advance" | "finish"
-	// }
 	output := parseSupervisorOutput(responseText, input.Stage)
+	output.Context = appendHistory(input.Context, userMessage, output.Text)
+	return output, nil
+}
 
-	// 7. 更新上下文（添加本轮对话到历史）
-	newContext := input.Context
-	if newContext == nil {
-		newContext = make(map[string]any)
+// resolveUserMessage 根据输入类型返回用户消息文本。
+func resolveUserMessage(input GraphInput) string {
+	if len(input.AudioData) > 0 {
+		return "[音频输入，Supervisor 将调用 ASR Tool 处理]"
+	}
+	return input.Text
+}
+
+// buildMessages 构建传给 Supervisor 的完整消息列表。
+func buildMessages(input GraphInput, userMessage string) []*schema.Message {
+	messages := []*schema.Message{schema.SystemMessage(getSystemPrompt(input.Stage))}
+
+	if input.Context != nil {
+		if history, ok := input.Context["history"].([]map[string]string); ok {
+			for _, msg := range history {
+				switch msg["role"] {
+				case "user":
+					messages = append(messages, schema.UserMessage(msg["content"]))
+				case "assistant":
+					messages = append(messages, schema.AssistantMessage(msg["content"], nil))
+				}
+			}
+		}
 	}
 
-	history, _ := newContext["history"].([]map[string]string)
-	history = append(history, map[string]string{
-		"role":    "user",
-		"content": userMessage,
-	})
-	history = append(history, map[string]string{
-		"role":    "assistant",
-		"content": output.Text,
-	})
-	newContext["history"] = history
+	return append(messages, schema.UserMessage(userMessage))
+}
 
-	return output, nil
+// appendHistory 将本轮对话追加到上下文历史并返回新上下文。
+func appendHistory(ctx map[string]any, userMessage, aiResponse string) map[string]any {
+	if ctx == nil {
+		ctx = make(map[string]any)
+	}
+	history, _ := ctx["history"].([]map[string]string)
+	history = append(history,
+		map[string]string{"role": "user", "content": userMessage},
+		map[string]string{"role": "assistant", "content": aiResponse},
+	)
+	ctx["history"] = history
+	return ctx
 }
 
 // SupervisorResponse Supervisor 的 JSON 响应格式

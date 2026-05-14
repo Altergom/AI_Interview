@@ -9,25 +9,36 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"ai_interview/internal/domain"
+	redistore "ai_interview/internal/storage/redis"
 )
 
-func setupTestRedis(t *testing.T) (*redis.Client, func()) {
-	// 使用 miniredis 创建内存 Redis
+func setupTestRedis(t *testing.T) (*redistore.Client, func()) {
 	mr, err := miniredis.Run()
 	if err != nil {
 		t.Fatalf("Failed to start miniredis: %v", err)
 	}
 
-	client := redis.NewClient(&redis.Options{
-		Addr: mr.Addr(),
-	})
-
-	cleanup := func() {
-		client.Close()
+	rdb, err := redistore.New(context.Background(), redistore.Options{Addr: mr.Addr()})
+	if err != nil {
 		mr.Close()
+		t.Fatalf("Failed to create redis client: %v", err)
 	}
 
-	return client, cleanup
+	cleanup := func() {
+		rdb.Close()
+		mr.Close()
+	}
+	return rdb, cleanup
+}
+
+// newTestRedisClient 供 interview_impl_test.go 使用的裸客户端（miniredis）
+func newTestRedisClient(t *testing.T) (*redis.Client, func()) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("Failed to start miniredis: %v", err)
+	}
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	return client, func() { client.Close(); mr.Close() }
 }
 
 func TestSessionManager_CreateAndGetSession(t *testing.T) {

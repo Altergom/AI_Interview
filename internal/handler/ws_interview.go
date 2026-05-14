@@ -162,10 +162,12 @@ func (h *wsInterviewHandler) handleTextMsg(
 	var msg UpMsg
 	if err := json.Unmarshal(data, &msg); err != nil {
 		log.Warnf("[WS] invalid json from user_id=%s: %v", userID, err)
-		_ = sendDownMsg(conn, DownMsg{
+		if err := sendDownMsg(conn, DownMsg{
 			Type:    DownMsgError,
 			Payload: ErrorPayload{Code: int(biz.CodeBadRequest), Message: "invalid message format"},
-		})
+		}); err != nil {
+			log.Warnf("[WS] send error msg failed user_id=%s: %v", userID, err)
+		}
 		return
 	}
 
@@ -195,10 +197,12 @@ func (h *wsInterviewHandler) handleControl(
 	log.Infof("[WS] control action=%s user_id=%s interview_id=%s", p.Action, userID, interviewID)
 
 	if p.Action == "stop" {
-		_ = sendDownMsg(conn, DownMsg{
+		if err := sendDownMsg(conn, DownMsg{
 			Type:    DownMsgStageChange,
 			Payload: StageChangePayload{Stage: "end", QuestionsAsked: 0},
-		})
+		}); err != nil {
+			log.Warnf("[WS] send stage_change failed user_id=%s: %v", userID, err)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"ai_interview/internal/domain"
 	"ai_interview/internal/einocore/compose"
+	"ai_interview/internal/log"
 	redisstorage "ai_interview/internal/storage/redis"
 )
 
@@ -139,7 +140,9 @@ func (s *interviewServiceImpl) ProcessAudio(ctx context.Context, req AudioReques
 	// 更新 InterviewState 阶段
 	if state != nil && output.NewStage != "" && output.NewStage != state.Stage {
 		state.Stage = output.NewStage
-		_ = s.redisCli.SaveInterviewState(ctx, state, s.stateTTL)
+		if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
+			log.Warnf("[InterviewService] save state after stage change interview_id=%s: %v", req.InterviewID, err)
+		}
 	}
 
 	return nil
@@ -163,7 +166,9 @@ func (s *interviewServiceImpl) Finish(ctx context.Context, interviewID string) (
 	if err == nil && state != nil {
 		state.Stage = domain.StageClosing
 		state.ReportStatus = "pending"
-		_ = s.redisCli.SaveInterviewState(ctx, state, s.stateTTL)
+		if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
+			log.Warnf("[InterviewService] save state on finish interview_id=%s: %v", interviewID, err)
+		}
 	}
 
 	// TODO: 发布 interview_finished 事件到 MQ

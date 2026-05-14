@@ -5,9 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
-
 	"ai_interview/internal/domain"
 )
 
@@ -15,24 +12,8 @@ import (
 // 暂时跳过需要 Graph 的测试
 
 func setupTestSessionManager(t *testing.T) (*SessionManager, func()) {
-	// 创建 miniredis
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("Failed to start miniredis: %v", err)
-	}
-
-	client := redis.NewClient(&redis.Options{
-		Addr: mr.Addr(),
-	})
-
-	// 创建 SessionManager
-	sm := NewSessionManager(client, time.Hour)
-
-	cleanup := func() {
-		client.Close()
-		mr.Close()
-	}
-
+	rdb, cleanup := setupTestRedis(t)
+	sm := NewSessionManager(rdb, time.Hour)
 	return sm, cleanup
 }
 
