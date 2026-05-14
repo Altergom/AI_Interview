@@ -141,7 +141,9 @@ func (s *resumeService) Parse(ctx context.Context, userID, objectKey string) (*d
 	if cached, err := s.db.GetByHash(ctx, hash); err == nil && cached != nil {
 		cached.UserID = userID
 		// 更新 PG 中的 user_id 绑定和 s3_key（新用户上传相同简历）
-		_ = s.db.Upsert(ctx, userID, hash, objectKey, cached)
+		if err := s.db.Upsert(ctx, userID, hash, objectKey, cached); err != nil {
+			log.Warnf("[ResumeService] upsert cached resume user=%s: %v", userID, err)
+		}
 		_ = s.rdb.SaveResume(ctx, cached, s.resumeTTL())
 		log.Infof("[ResumeService] resume cache hit hash=%.8s user=%s", hash, userID)
 		return cached, nil

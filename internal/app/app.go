@@ -103,7 +103,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// 6. Session 管理
 	llm.Init(cfg) // LLM provider registry 初始化（静态配置，无 IO）
-	sessionManager := service.NewSessionManager(rdb.Client(), cfg.InterviewStateTTL)
+	sessionManager := service.NewSessionManager(rdb, cfg.InterviewStateTTL)
 
 	// 7. AI 层
 	supervisor, err := agent.NewSupervisor(ctx, agent.SupervisorConfig{

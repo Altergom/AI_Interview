@@ -13,3 +13,29 @@ type InterviewState struct {
 	ReportStatus             string         `json:"report_status"` // pending | processing | completed | failed
 	StartedAt                time.Time      `json:"started_at"`
 }
+
+// InterviewSession 面试会话，存 Redis key: interview:session:{interview_id}
+type InterviewSession struct {
+	InterviewID string         `json:"interview_id"`
+	UserID      string         `json:"user_id"`
+	Stage       InterviewStage `json:"stage"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	History     []SessionMessage `json:"history"`
+	Stats       SessionStats   `json:"stats"`
+	Context     map[string]any `json:"context"`
+}
+
+// SessionMessage 单条对话消息。
+type SessionMessage struct {
+	Role      string    `json:"role"`      // user | assistant
+	Content   string    `json:"content"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// SessionStats 会话统计信息。
+type SessionStats struct {
+	QuestionCount  int `json:"question_count"`
+	AlgorithmCount int `json:"algorithm_count"`
+	TotalRounds    int `json:"total_rounds"`
+}

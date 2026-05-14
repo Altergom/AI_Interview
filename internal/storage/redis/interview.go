@@ -78,6 +78,46 @@ func (c *Client) GetInterviewConfig(ctx context.Context, interviewID string) (*I
 	return &cfg, nil
 }
 
+// SaveSession 保存面试会话到 Redis。
+// key: interview:session:{interview_id}
+func (c *Client) SaveSession(ctx context.Context, session *domain.InterviewSession, ttl time.Duration) error {
+	data, err := json.Marshal(session)
+	if err != nil {
+		return fmt.Errorf("marshal session: %w", err)
+	}
+	key := fmt.Sprintf("interview:session:%s", session.InterviewID)
+	return c.rdb.Set(ctx, key, data, ttl).Err()
+}
+
+// GetSession 从 Redis 读取面试会话，key 不存在时返回 nil, nil。
+func (c *Client) GetSession(ctx context.Context, interviewID string) (*domain.InterviewSession, error) {
+	key := fmt.Sprintf("interview:session:%s", interviewID)
+	data, err := c.rdb.Get(ctx, key).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get session: %w", err)
+	}
+	var session domain.InterviewSession
+	if err := json.Unmarshal(data, &session); err != nil {
+		return nil, fmt.Errorf("unmarshal session: %w", err)
+	}
+	return &session, nil
+}
+
+// DeleteSession 删除面试会话。
+func (c *Client) DeleteSession(ctx context.Context, interviewID string) error {
+	key := fmt.Sprintf("interview:session:%s", interviewID)
+	return c.rdb.Del(ctx, key).Err()
+}
+
+// ExpireSession 刷新面试会话 TTL。
+func (c *Client) ExpireSession(ctx context.Context, interviewID string, ttl time.Duration) error {
+	key := fmt.Sprintf("interview:session:%s", interviewID)
+	return c.rdb.Expire(ctx, key, ttl).Err()
+}
+
 // questionHash 计算题目文本的去重 hash（SHA-256 前 16 字节 hex）。
 func questionHash(question string) string {
 	sum := sha256.Sum256([]byte(question))

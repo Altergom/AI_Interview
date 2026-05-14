@@ -42,13 +42,10 @@ func (h *resumeHandler) PresignUpload(ctx context.Context, c *app.RequestContext
 
 // parseReq POST /v1/resume/parse 请求体。
 type parseReq struct {
-	// ObjectKey 前端直传 S3 后的对象路径，由 PresignUpload 返回。
 	ObjectKey string `json:"object_key"`
 }
 
 // Parse POST /v1/resume/parse
-// 从 S3 下载 PDF → 文本提取 → SHA-256 去重 → LLM 结构化解析。
-// LLM 失败时降级返回空结构体（success=true, data=empty），前端显示空表单。
 func (h *resumeHandler) Parse(ctx context.Context, c *app.RequestContext) {
 	userID := authmw.GetUserID(c)
 
@@ -60,7 +57,6 @@ func (h *resumeHandler) Parse(ctx context.Context, c *app.RequestContext) {
 
 	resume, err := h.svc.Parse(ctx, userID, req.ObjectKey)
 	if err != nil {
-		// Parse 只有下载失败才返回 error，其余情况都降级返回空结构体
 		HandleErr(ctx, c, err)
 		return
 	}
@@ -68,17 +64,37 @@ func (h *resumeHandler) Parse(ctx context.Context, c *app.RequestContext) {
 	OK(ctx, c, resume)
 }
 
-// submitReq POST /v1/resume/submit 请求体（与 domain.StructuredResume 对齐）。
+// submitProject handler 层简历项目 DTO，与 domain.ResumeProject 字段对齐。
+type submitProject struct {
+	Name        string   `json:"name"`
+	TechStack   []string `json:"tech_stack"`
+	Description string   `json:"description"`
+	Highlights  []string `json:"highlights"`
+}
+
+// submitInternship handler 层实习经历 DTO。
+type submitInternship struct {
+	Company     string `json:"company,omitempty"`
+	Role        string `json:"role,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// submitEducation handler 层教育背景 DTO。
+type submitEducation struct {
+	School     string `json:"school"`
+	Major      string `json:"major"`
+	Graduation string `json:"graduation"`
+}
+
+// submitReq POST /v1/resume/submit 请求体，使用独立 DTO 不引用 domain 类型。
 type submitReq struct {
-	Skills      []string                  `json:"skills"`
-	Projects    []domain.ResumeProject    `json:"projects"`
-	Internships []domain.ResumeInternship `json:"internships"`
-	Education   domain.ResumeEducation    `json:"education"`
+	Skills      []string           `json:"skills"`
+	Projects    []submitProject    `json:"projects"`
+	Internships []submitInternship `json:"internships"`
+	Education   submitEducation    `json:"education"`
 }
 
 // Submit POST /v1/resume/submit
-// 保存用户确认（或手填）后的简历，写 PG + Redis。
-// 响应: { resume_id }（以 SHA-256 hash 作为幂等 ID）
 func (h *resumeHandler) Submit(ctx context.Context, c *app.RequestContext) {
 	userID := authmw.GetUserID(c)
 
@@ -88,12 +104,34 @@ func (h *resumeHandler) Submit(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
+	projects := make([]domain.ResumeProject, len(req.Projects))
+	for i, p := range req.Projects {
+		projects[i] = domain.ResumeProject{
+			Name:        p.Name,
+			TechStack:   p.TechStack,
+			Description: p.Description,
+			Highlights:  p.Highlights,
+		}
+	}
+	internships := make([]domain.ResumeInternship, len(req.Internships))
+	for i, n := range req.Internships {
+		internships[i] = domain.ResumeInternship{
+			Company:     n.Company,
+			Role:        n.Role,
+			Description: n.Description,
+		}
+	}
+
 	resume := domain.StructuredResume{
 		UserID:      userID,
 		Skills:      req.Skills,
-		Projects:    req.Projects,
-		Internships: req.Internships,
-		Education:   req.Education,
+		Projects:    projects,
+		Internships: internships,
+		Education: domain.ResumeEducation{
+			School:     req.Education.School,
+			Major:      req.Education.Major,
+			Graduation: req.Education.Graduation,
+		},
 	}
 
 	resumeID, err := h.svc.Submit(ctx, resume)
@@ -106,7 +144,6 @@ func (h *resumeHandler) Submit(ctx context.Context, c *app.RequestContext) {
 }
 
 // Get GET /v1/resume
-// 查询当前用户简历（Redis → PG 回填），未找到返回 null data。
 func (h *resumeHandler) Get(ctx context.Context, c *app.RequestContext) {
 	userID := authmw.GetUserID(c)
 
@@ -115,6 +152,5 @@ func (h *resumeHandler) Get(ctx context.Context, c *app.RequestContext) {
 		HandleErr(ctx, c, err)
 		return
 	}
-	// resume == nil 说明用户还没有简历，前端据此决定是否跳转上传页
 	OK(ctx, c, resume)
 }
