@@ -2,87 +2,78 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"ai_interview/internal/domain"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-// ResumeRepository 简历 PG 存储层。
+// ResumeRepository stores parsed resumes in PostgreSQL.
 type ResumeRepository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-// NewResumeRepository 创建 ResumeRepository。
-func NewResumeRepository(db *sql.DB) *ResumeRepository {
+// NewResumeRepository creates a ResumeRepository.
+func NewResumeRepository(db *gorm.DB) *ResumeRepository {
 	return &ResumeRepository{db: db}
 }
 
-// GetByHash 按 content_hash 查询简历，未找到时返回 nil, nil。
-// 用于去重：相同文本的 PDF 直接返回已解析结果，不重复调 LLM。
+// GetByHash returns a parsed resume by content hash, or nil when missing.
 func (r *ResumeRepository) GetByHash(ctx context.Context, hash string) (*domain.StructuredResume, error) {
-	const q = `SELECT parsed_data FROM resumes WHERE content_hash = $1 LIMIT 1`
-
-	var raw []byte
-	err := r.db.QueryRowContext(ctx, q, hash).Scan(&raw)
+	var row ResumeModel
+	err := r.db.WithContext(ctx).Where(&ResumeModel{ContentHash: hash}).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("[ResumeRepo] get by hash: %w", err)
 	}
-
-	var resume domain.StructuredResume
-	if err := json.Unmarshal(raw, &resume); err != nil {
+	resume, err := row.toDomain()
+	if err != nil {
 		return nil, fmt.Errorf("[ResumeRepo] unmarshal resume: %w", err)
 	}
-	return &resume, nil
+	return resume, nil
 }
 
-// GetByUserID 查询用户最新一条简历，未找到返回 nil, nil。
+// GetByUserID returns the latest parsed resume for a user, or nil when missing.
 func (r *ResumeRepository) GetByUserID(ctx context.Context, userID string) (*domain.StructuredResume, error) {
-	const q = `
-		SELECT parsed_data FROM resumes
-		WHERE user_id = $1
-		ORDER BY created_at DESC
-		LIMIT 1`
-
-	var raw []byte
-	err := r.db.QueryRowContext(ctx, q, userID).Scan(&raw)
+	var row ResumeModel
+	err := r.db.WithContext(ctx).
+		Where(&ResumeModel{UserID: userID}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}, Desc: true}).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("[ResumeRepo] get by user_id: %w", err)
 	}
-
-	var resume domain.StructuredResume
-	if err := json.Unmarshal(raw, &resume); err != nil {
+	resume, err := row.toDomain()
+	if err != nil {
 		return nil, fmt.Errorf("[ResumeRepo] unmarshal resume: %w", err)
 	}
-	return &resume, nil
+	return resume, nil
 }
 
-// Upsert 按 content_hash 插入或更新简历（ON CONFLICT DO UPDATE）。
-// s3Key 记录原始 PDF 在 S3 的对象路径（备份追溯用）。
-// 同一 hash 的简历若已存在，更新 user_id / s3_key / updated_at（解析结果不变）。
+// Upsert inserts or updates a parsed resume by content_hash.
 func (r *ResumeRepository) Upsert(ctx context.Context, userID, hash, s3Key string, resume *domain.StructuredResume) error {
-	data, err := json.Marshal(resume)
+	row, err := newResumeModel(userID, hash, s3Key, resume)
 	if err != nil {
 		return fmt.Errorf("[ResumeRepo] marshal resume: %w", err)
 	}
-
-	const q = `
-		INSERT INTO resumes (user_id, content_hash, s3_key, parsed_data)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (content_hash) DO UPDATE
-		  SET user_id    = EXCLUDED.user_id,
-		      s3_key     = EXCLUDED.s3_key,
-		      updated_at = NOW()`
-
-	if _, err := r.db.ExecContext(ctx, q, userID, hash, s3Key, data); err != nil {
+	err = r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "content_hash"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"user_id":    userID,
+			"s3_key":     s3Key,
+			"updated_at": time.Now(),
+		}),
+	}).Create(row).Error
+	if err != nil {
 		return fmt.Errorf("[ResumeRepo] upsert resume: %w", err)
 	}
 	return nil

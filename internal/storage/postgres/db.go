@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
 	"ai_interview/internal/log"
+
+	gormpg "gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-// Options PostgreSQL 连接池配置，全部字段均有合理默认值。
+// Options configures the PostgreSQL connection pool.
 type Options struct {
 	DSN             string
-	MaxOpenConns    int           // 默认 25
-	MaxIdleConns    int           // 默认 5
-	ConnMaxLifetime time.Duration // 默认 30m
-	ConnMaxIdleTime time.Duration // 默认 5m
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 func (o *Options) withDefaults() {
@@ -35,19 +36,24 @@ func (o *Options) withDefaults() {
 	}
 }
 
-// DB 封装 PostgreSQL 连接池。
+// DB wraps the GORM handle and its underlying connection pool.
 type DB struct {
+	gorm *gorm.DB
 	conn *sql.DB
 }
 
-// New 初始化 PostgreSQL 连接池。
-// DSN 格式: postgres://user:pass@host:port/dbname?sslmode=disable
+// New initializes PostgreSQL.
+// DSN format: postgres://user:pass@host:port/dbname?sslmode=disable
 func New(ctx context.Context, opts Options) (*DB, error) {
 	opts.withDefaults()
 
-	conn, err := sql.Open("pgx", opts.DSN)
+	gormDB, err := gorm.Open(gormpg.Open(opts.DSN), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
+	}
+	conn, err := gormDB.DB()
+	if err != nil {
+		return nil, fmt.Errorf("get postgres sql db: %w", err)
 	}
 
 	conn.SetMaxOpenConns(opts.MaxOpenConns)
@@ -63,21 +69,26 @@ func New(ctx context.Context, opts Options) (*DB, error) {
 	log.Infof("[Postgres] connected, maxOpen=%d maxIdle=%d lifetime=%s idleTime=%s",
 		opts.MaxOpenConns, opts.MaxIdleConns, opts.ConnMaxLifetime, opts.ConnMaxIdleTime)
 
-	return &DB{conn: conn}, nil
+	return &DB{gorm: gormDB, conn: conn}, nil
 }
 
-// Close 关闭连接池。
+// Close closes the underlying connection pool.
 func (db *DB) Close() error {
 	log.Infof("[Postgres] closing connection pool")
 	return db.conn.Close()
 }
 
-// Ping 检查数据库连通性。
+// Ping checks database connectivity.
 func (db *DB) Ping(ctx context.Context) error {
 	return db.conn.PingContext(ctx)
 }
 
-// Conn 返回底层 *sql.DB，供业务层执行查询。
+// Conn returns the underlying *sql.DB for migrations and connection pool control.
 func (db *DB) Conn() *sql.DB {
 	return db.conn
+}
+
+// Gorm returns the GORM handle for runtime business repositories.
+func (db *DB) Gorm() *gorm.DB {
+	return db.gorm
 }

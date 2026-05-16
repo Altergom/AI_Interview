@@ -42,7 +42,7 @@ func main() {
 	}
 	defer db.Close()
 
-	repo := postgres.NewBankQuestionRepo(db.Conn())
+	repo := postgres.NewBankQuestionRepo(db.Gorm())
 
 	// 连接 MQ
 	mqCli, err := mqclient.New(config.Cfg.MQBrokerURL)
