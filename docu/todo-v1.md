@@ -44,6 +44,7 @@
 - [x] 创建 ES 索引 `bank_questions`（mapping：`question` text + `tags` keyword + `difficulty` keyword）
 - [x] migrations 整理：新增 `bank_questions` 元数据表（不含向量列，仅结构化字段）
 - [x] PostgreSQL 连接池配置
+- [x] 引入 GORM 替换 PostgreSQL 业务层手写 SQL，消除运行时 SQL 拼接注入风险
 - [x] Redis 连接初始化
 - [x] S3 客户端配置 + Bucket 权限策略
 - [x] LlmProviderRegistry 骨架（v1 仅编译期静态配置，从 `.env` 读）
