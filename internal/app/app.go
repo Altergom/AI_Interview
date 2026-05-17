@@ -133,9 +133,9 @@ func New(cfg *config.Config) (*App, error) {
 	authSvc := service.NewAuthService(userRepo, jwtCfg)
 	resumeRepo := postgres.NewResumeRepository(db.Gorm())
 	resumeSvc := service.NewResumeService(s3Client, resumeRepo, rdb, cfg)
-	turnRepo := postgres.NewInterviewTurnRepo(db.Conn())
+	turnRepo := postgres.NewInterviewTurnRepo(db.Gorm())
 	interviewSvc := service.NewInterviewService(sessionManager, graph, rdb, turnRepo, cfg.InterviewStateTTL)
-	questionnaireRepo := postgres.NewQuestionnaireRepo(db.Conn())
+	questionnaireRepo := postgres.NewQuestionnaireRepo(db.Gorm())
 	questionnaireSvc := service.NewQuestionnaireService(questionnaireRepo)
 
 	// 9. HTTP Server
