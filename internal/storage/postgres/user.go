@@ -2,20 +2,22 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-// UserRepository 定义 users 表读写接口，便于 service 层测试 mock。
+// UserRepository defines users table operations for auth service.
 type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*UserRow, error)
 	FindByID(ctx context.Context, id string) (*UserRow, error)
 	Create(ctx context.Context, u UserRow) (string, error)
 }
 
-// UserRow 对应 users 表一行。
+// UserRow is the storage row shape consumed by the auth service.
 type UserRow struct {
 	ID           string
 	Email        string
@@ -25,64 +27,69 @@ type UserRow struct {
 	CreatedAt    time.Time
 }
 
-// ErrUserNotFound 用户不存在哨兵错误。
+// ErrUserNotFound indicates a missing user row.
 var ErrUserNotFound = errors.New("user not found")
 
-// UserRepo 封装 users 表的读写操作。
+// UserRepo wraps users table reads and writes.
 type UserRepo struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-// NewUserRepo 创建 UserRepo。
-func NewUserRepo(db *sql.DB) *UserRepo {
+// NewUserRepo creates a UserRepo.
+func NewUserRepo(db *gorm.DB) *UserRepo {
 	return &UserRepo{db: db}
 }
 
-// FindByEmail 按邮箱查找用户，不存在返回 ErrUserNotFound。
+// FindByEmail finds a user by email, returning ErrUserNotFound when missing.
 func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*UserRow, error) {
-	row := r.db.QueryRowContext(ctx,
-		`SELECT id, email, username, password_hash, is_guest, created_at
-		   FROM users WHERE email = $1`, email)
-
-	var u UserRow
-	err := row.Scan(&u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.IsGuest, &u.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
+	var model UserModel
+	err := r.db.WithContext(ctx).Where(&UserModel{Email: email}).First(&model).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find user by email: %w", err)
 	}
-	return &u, nil
+	return userModelToRow(model), nil
 }
 
-// FindByID 按 UUID 查找用户，不存在返回 ErrUserNotFound。
+// FindByID finds a user by UUID, returning ErrUserNotFound when missing.
 func (r *UserRepo) FindByID(ctx context.Context, id string) (*UserRow, error) {
-	row := r.db.QueryRowContext(ctx,
-		`SELECT id, email, username, password_hash, is_guest, created_at
-		   FROM users WHERE id = $1`, id)
-
-	var u UserRow
-	err := row.Scan(&u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.IsGuest, &u.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
+	var model UserModel
+	err := r.db.WithContext(ctx).Where(&UserModel{ID: id}).First(&model).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find user by id: %w", err)
 	}
-	return &u, nil
+	return userModelToRow(model), nil
 }
 
-// Create 插入新用户，返回数据库生成的 UUID。
+// Create inserts a new user and returns the database-generated UUID.
 func (r *UserRepo) Create(ctx context.Context, u UserRow) (string, error) {
-	var id string
-	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO users (email, username, password_hash, is_guest)
-		 VALUES ($1, $2, $3, $4)
-		 RETURNING id`,
-		u.Email, u.Username, u.PasswordHash, u.IsGuest,
-	).Scan(&id)
+	model := UserModel{
+		Email:        u.Email,
+		Username:     u.Username,
+		PasswordHash: u.PasswordHash,
+		IsGuest:      u.IsGuest,
+	}
+	err := r.db.WithContext(ctx).
+		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
+		Create(&model).Error
 	if err != nil {
 		return "", fmt.Errorf("create user: %w", err)
 	}
-	return id, nil
+	return model.ID, nil
+}
+
+func userModelToRow(model UserModel) *UserRow {
+	return &UserRow{
+		ID:           model.ID,
+		Email:        model.Email,
+		Username:     model.Username,
+		PasswordHash: model.PasswordHash,
+		IsGuest:      model.IsGuest,
+		CreatedAt:    model.CreatedAt,
+	}
 }

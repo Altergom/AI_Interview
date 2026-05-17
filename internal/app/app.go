@@ -124,14 +124,14 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// 8. Service 层
-	userRepo := postgres.NewUserRepo(db.Conn())
+	userRepo := postgres.NewUserRepo(db.Gorm())
 	jwtCfg := auth.TokenConfig{
 		Secret:    cfg.JWTSecret,
 		Issuer:    cfg.JWTIssuer,
 		ExpMinute: cfg.JWTAccessExpMin,
 	}
 	authSvc := service.NewAuthService(userRepo, jwtCfg)
-	resumeRepo := postgres.NewResumeRepository(db.Conn())
+	resumeRepo := postgres.NewResumeRepository(db.Gorm())
 	resumeSvc := service.NewResumeService(s3Client, resumeRepo, rdb, cfg)
 	turnRepo := postgres.NewInterviewTurnRepo(db.Conn())
 	interviewSvc := service.NewInterviewService(sessionManager, graph, rdb, turnRepo, cfg.InterviewStateTTL)
