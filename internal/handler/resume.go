@@ -88,6 +88,9 @@ type submitEducation struct {
 
 // submitReq POST /v1/resume/submit 请求体，使用独立 DTO 不引用 domain 类型。
 type submitReq struct {
+	Name        string             `json:"name,omitempty"`
+	Phone       string             `json:"phone,omitempty"`
+	Email       string             `json:"email,omitempty"`
 	Skills      []string           `json:"skills"`
 	Projects    []submitProject    `json:"projects"`
 	Internships []submitInternship `json:"internships"`
@@ -124,6 +127,9 @@ func (h *resumeHandler) Submit(ctx context.Context, c *app.RequestContext) {
 
 	resume := domain.StructuredResume{
 		UserID:      userID,
+		Name:        req.Name,
+		Phone:       req.Phone,
+		Email:       req.Email,
 		Skills:      req.Skills,
 		Projects:    projects,
 		Internships: internships,

@@ -77,8 +77,10 @@ func New(cfg *config.Config) (*App, error) {
 
 	// 4. Milvus（向量数据库）
 	milvusClient, err := milvus.New(ctx, milvus.Options{
-		Addr:       cfg.MilvusAddr,
-		Collection: cfg.MilvusCollection,
+		Addr:          cfg.MilvusAddr,
+		APIKey:        cfg.MilvusAPIKey,
+		EnableTLSAuth: cfg.MilvusEnableTLS,
+		Collection:    cfg.MilvusCollection,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init milvus: %w", err)
@@ -131,14 +133,18 @@ func New(cfg *config.Config) (*App, error) {
 	authSvc := service.NewAuthService(userRepo, jwtCfg)
 	resumeRepo := postgres.NewResumeRepository(db.Conn())
 	resumeSvc := service.NewResumeService(s3Client, resumeRepo, rdb, cfg)
-	interviewSvc := service.NewInterviewService(sessionManager, graph, rdb, cfg.InterviewStateTTL)
+	turnRepo := postgres.NewInterviewTurnRepo(db.Conn())
+	interviewSvc := service.NewInterviewService(sessionManager, graph, rdb, turnRepo, cfg.InterviewStateTTL)
+	questionnaireRepo := postgres.NewQuestionnaireRepo(db.Conn())
+	questionnaireSvc := service.NewQuestionnaireService(questionnaireRepo)
 
 	// 9. HTTP Server
 	srv := handler.NewServer(cfg, handler.Services{
-		Auth:      authSvc,
-		Resume:    resumeSvc,
-		Interview: interviewSvc,
-		Rdb:       rdb.Client(),
+		Auth:          authSvc,
+		Resume:        resumeSvc,
+		Interview:     interviewSvc,
+		Questionnaire: questionnaireSvc,
+		Rdb:           rdb.Client(),
 	})
 
 	return &App{Server: srv, db: db, redis: rdb, s3: s3Client, milvus: milvusClient, es: esClient}, nil

@@ -20,6 +20,15 @@ const initialState = {
   parseError: null,
 };
 
+// 手动填表时的最小骨架——避免 resume 为 null 时丢弃 updates 导致输入框无法输入。
+const emptyResume: StructuredResume = {
+  user_id: '',
+  skills: [],
+  projects: [],
+  internships: [],
+  education: { school: '', major: '', graduation: '' },
+};
+
 export const useResumeStore = create<ResumeState>()(
   persist(
     (set) => ({
@@ -30,8 +39,14 @@ export const useResumeStore = create<ResumeState>()(
         parseError: null
       }),
 
+      // 初次手动填表时 resume 为 null，先给一个最小骨架再合并 updates；
+      // 否则 null 分支直接返回 null，更新被静默丢弃，表现为输入框无法输入。
       updateResume: (updates) => set((state) => ({
-        resume: state.resume ? { ...state.resume, ...updates } : null
+        resume: {
+          ...emptyResume,
+          ...(state.resume ?? {}),
+          ...updates,
+        },
       })),
 
       setParsing: (parsing) => set({ isParsing: parsing }),

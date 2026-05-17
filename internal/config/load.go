@@ -164,6 +164,11 @@ func parseFromEnv() (*Config, error) {
 		logFormat = "text"
 	}
 
+	milvusTLS, err := getBool("MILVUS_ENABLE_TLS", false)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		Env:               get("APP_ENV", "development"),
 		LogLevel:          get("LOG_LEVEL", "info"),
@@ -223,6 +228,8 @@ func parseFromEnv() (*Config, error) {
 
 		MilvusAddr:       get("MILVUS_ADDR", "127.0.0.1:19530"),
 		MilvusCollection: get("MILVUS_COLLECTION", "bank_questions_vec"),
+		MilvusAPIKey:     get("MILVUS_API_KEY", ""),
+		MilvusEnableTLS:  milvusTLS,
 
 		ESAddrs:    splitComma(get("ES_ADDRS", "http://127.0.0.1:9200")),
 		ESUsername: get("ES_USERNAME", ""),

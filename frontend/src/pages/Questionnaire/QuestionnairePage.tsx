@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container } from '../../components/layout/Container';
 import { Button } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
 import { TurnItem } from './TurnItem';
 import { getQuestionnaire, submitQuestionnaire } from '../../services/questionnaire';
 import { useInterviewStore } from '../../store/interviewStore';
@@ -26,8 +25,8 @@ export const QuestionnairePage = () => {
     if (!interviewId) return;
 
     try {
-      const data = await getQuestionnaire(interviewId);
-      setTurns(data.turns);
+      const turns = await getQuestionnaire(interviewId);
+      setTurns(turns);
     } catch (error) {
       console.error('加载问卷失败', error);
     }

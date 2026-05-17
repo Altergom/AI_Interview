@@ -11,6 +11,23 @@
 *.out
 /vendor/
 
+# Frontend / Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 测试 / 临时输出
+/tmp/
+*.tmp
+coverage/
+.coverage
+
 # IDE
 .idea/
 .vscode/
