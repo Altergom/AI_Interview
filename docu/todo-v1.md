@@ -12,7 +12,7 @@
 - [通用能力](#通用能力)
 - [用户与认证](#用户与认证)
 - [简历模块](#简历模块)
-- [Skill 出题模块](#skill-出题模块)
+- [Wiki 知识库模块](#wiki-知识库模块)
 - [Tag-RAG 题库（仅供 AI）](#tag-rag-题库仅供-ai)
 - [WebSocket 通信骨架](#websocket-通信骨架)
 - [语音面试（替换现有 Mock）](#语音面试替换现有-mock)
@@ -95,15 +95,40 @@
 
 ---
 
-## Skill 出题模块
+## Wiki 知识库模块
 
-> 对标 interview-guide：`SKILL.md` 文件驱动出题，比 RAG 题库维护成本低。
+> 替代原 Skill 方案。详见 [issue #18](https://github.com/Altergom/AI_Interview/issues/18)。
+>
+> 核心设计：人添加 raw 文档 → 系统生成骨架 → 人在 Obsidian 连线写入 index.md → 模型拿连线规则 + raw 文档一次性补全题目页。人定结构，模型填内容。
 
-- [x] 创建目录 `internal/einocore/skills/{direction}/SKILL.md`，v1 至少覆盖 5 个方向：
-  - `go-backend` / `java-backend` / `frontend` / `algorithm` / `ai-agent`
-- [x] 每个 SKILL.md 包含：考察范围、难度分布、追问策略、引用资料路径
-- [x] `SkillLoader`：Eino `NewBackendFromFilesystem` + `NewMiddleware` 接入，启动时校验目录；hot-reload 由每次请求读文件实现（不重启服务可更新 SKILL.md 内容）
-- [x] 历史题目跨 turn 去重：Redis Set `interview:{id}:asked_questions`
+**目录结构**
+
+- [x] 创建 `internal/wiki/raw/`、`internal/wiki/questions/` 目录骨架
+- [x] 初始化 `internal/wiki/index.md`、`internal/wiki/log.md`
+
+**Schema 设计（核心）**
+
+- [x] 定义 tag 词汇表（领域：`#go` `#java` `#大模型` `#中间件`；难度：`#难度:低/中/高`）
+- [x] 定义边类型及语义边界（深挖/横向/跨域）
+- [x] 定义 ingest 三步流程：骨架生成 → 人工连线写 index.md → 模型补全题目页
+- [x] 定义模型游走规则：按 tag 过滤 + 度数找起点，按回答质量决定边类型
+- [x] 定义文件命名规范：文件名一旦确定不可修改
+
+**Lint 工具**
+
+- [ ] 孤立页面检测（index.md 中度数为 0 的节点，ingest 后必跑）
+- [ ] 悬空链接检测（wikilink 指向不存在的文件）
+
+**初始内容**
+
+- [ ] 整理现有面试题资料，加 tag 后放入 `raw/`
+- [ ] 在 Obsidian 中完成初始连线，写入 index.md
+- [ ] 触发模型补全，生成初始 questions 页集合
+
+**集成**
+
+- [ ] 在 `CLAUDE.md` / `AGENTS.md` 中记录 wiki 工作流
+- [ ] 历史题目跨 turn 去重：Redis Set `interview:{id}:asked_questions`
 
 ---
 
@@ -123,6 +148,8 @@
   - **关键词/标签召回**：ES bool query（tags filter + question match），返回 Top-20
   - **RRF 融合**：`score = Σ 1/(k + rank_i)`，k=60，取融合 Top-K
 - [x] 题库种子脚本：导入初始 50-100 道题（覆盖 5 个方向）
+
+> **可选 — RAG 兜底方案**：当 wiki 检索无法覆盖某类问题时，降级到 Milvus+ES 多路召回补充候选题目。触发条件：wiki query 返回结果数 < 阈值（建议 3）时自动触发 Tag-RAG 召回，结果经 RRF 融合后注入出题上下文。此方案依赖上方 Tag-RAG 基建已就绪，实现成本低，可在 wiki 方案稳定后按需启用。
 
 ---
 
