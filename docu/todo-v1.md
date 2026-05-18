@@ -236,13 +236,13 @@
 ## Report Worker（基础版）
 
 - [x] `mq.InterviewFinished` 事件定义
-- [ ] RabbitMQ Producer：面试结束发布消息
-- [ ] Worker Consumer：消费 → 拉对话记录 → 调评估管道 → 写 PG
-- [ ] 任务状态机：`pending → processing → completed / failed`
-- [ ] 失败重试 3 次（v1 失败直接 DB 标 failed，**死信队列推 v2**）
+- [x] RabbitMQ Producer：面试结束发布消息
+- [x] Worker Consumer：消费 → 拉对话记录 → 调评估管道 → 写 PG
+- [x] 任务状态机：`pending → processing → completed / failed`
+- [x] 失败重试 3 次（v1 失败直接 DB 标 failed，**死信队列推 v2**）
 - [ ] 报告生成完成后通过 WebSocket 推送通知前端
-- [ ] Record Service：`SaveTurn` / `GetInterviewRecord`
-- [ ] 音频文件上传 S3：`/audio/{interview_id}/{turn_id}.wav`
+- [x] Record Service：`SaveTurn` / `GetInterviewRecord`
+- [x] 音频文件上传 S3：`/audio/{interview_id}/{turn_id}.wav`
 
 ---
 
@@ -252,11 +252,11 @@
 
 - [x] 定义问卷标注与 SFT/JSONL 行结构（`QuestionnaireResult`、`SFTMessage`）
 - [x] `questionnaire_results` 表 schema
-- [ ] 提交 API `POST /v1/questionnaire/submit`
-- [ ] 接收逐轮标注（quality: good/bad + feedback 文字）
-- [ ] **采集策略：good/bad 都采集**（DPO 负样本备用）
-- [ ] **数据形态：多轮 conversation**（保存到 PG，定期导出在 v2）
-- [ ] 前端问卷页：逐轮展示 ASR 文本 + 打标 good/bad + 反馈输入
+- [x] 提交 API `POST /v1/questionnaire/submit`
+- [x] 接收逐轮标注（quality: good/bad + feedback 文字）
+- [x] **采集策略：good/bad 都采集**（DPO 负样本备用）
+- [x] **数据形态：多轮 conversation**（保存到 PG，定期导出在 v2）
+- [x] 前端问卷页：逐轮展示 ASR 文本 + 打标 good/bad + 反馈输入
 
 ---
 

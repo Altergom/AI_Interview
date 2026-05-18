@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -10,8 +11,11 @@ import (
 	"ai_interview/internal/domain"
 	"ai_interview/internal/einocore/compose"
 	"ai_interview/internal/log"
+	"ai_interview/internal/mq/mqclient"
+	"ai_interview/internal/mq"
 	"ai_interview/internal/storage/postgres"
 	redisstorage "ai_interview/internal/storage/redis"
+	"ai_interview/internal/storage/s3"
 )
 
 // interviewServiceImpl InterviewService 的实现
@@ -20,16 +24,22 @@ type interviewServiceImpl struct {
 	graph          *compose.InterviewGraph
 	redisCli       *redisstorage.Client
 	turnRepo       postgres.InterviewTurnRepository
+	s3Client       *s3.Client
+	mqClient       *mqclient.Client
+	mqTopic        string
 	stateTTL       time.Duration
 }
 
 // NewInterviewService 创建 InterviewService 实例，所有依赖从外部注入。
-// turnRepo 允许 nil（测试 / 灰度场景），nil 时跳过 turn 落库，仅日志告警。
+// turnRepo / s3Client / mqClient 允许 nil（测试 / 灰度场景），nil 时跳过对应功能。
 func NewInterviewService(
 	sessionManager *SessionManager,
 	graph *compose.InterviewGraph,
 	redisCli *redisstorage.Client,
 	turnRepo postgres.InterviewTurnRepository,
+	s3Client *s3.Client,
+	mqClient *mqclient.Client,
+	mqTopic string,
 	stateTTL time.Duration,
 ) InterviewService {
 	return &interviewServiceImpl{
@@ -37,6 +47,9 @@ func NewInterviewService(
 		graph:          graph,
 		redisCli:       redisCli,
 		turnRepo:       turnRepo,
+		s3Client:       s3Client,
+		mqClient:       mqClient,
+		mqTopic:        mqTopic,
 		stateTTL:       stateTTL,
 	}
 }
@@ -119,6 +132,17 @@ func (s *interviewServiceImpl) ProcessAudio(ctx context.Context, req AudioReques
 		graphContext["interview_id"] = req.InterviewID
 	}
 
+	// 异步上传音频到 S3，失败不阻塞面试流程
+	if s.s3Client != nil && len(req.AudioData) > 0 {
+		audioData := make([]byte, len(req.AudioData))
+		copy(audioData, req.AudioData)
+		go func() {
+			if err := s.s3Client.UploadAudio(context.Background(), req.InterviewID, req.TurnID, bytes.NewReader(audioData)); err != nil {
+				log.Warnf("[InterviewService] upload audio failed interview_id=%s turn_id=%s: %v", req.InterviewID, req.TurnID, err)
+			}
+		}()
+	}
+
 	// 在调用 graph 前抓取「上一句 AI 提问」——也就是用户本轮在回答的问题。
 	// 必须在 UpdateFromGraphOutput 之前读取，否则 history 会被本轮新消息污染。
 	priorQuestion := lastAssistantMessage(session.History)
@@ -186,7 +210,13 @@ func (s *interviewServiceImpl) Finish(ctx context.Context, interviewID string) (
 		}
 	}
 
-	// TODO: 发布 interview_finished 事件到 MQ
+	// 发布 interview_finished 事件到 MQ
+	if s.mqClient != nil {
+		event := mq.NewInterviewFinishedEvent(interviewID, session.UserID, time.Now())
+		if err := s.mqClient.Publish(ctx, s.mqTopic, event); err != nil {
+			log.Errorf("[InterviewService] publish interview_finished interview_id=%s: %v", interviewID, err)
+		}
+	}
 
 	return &InterviewFinishResult{
 		InterviewID:     interviewID,
