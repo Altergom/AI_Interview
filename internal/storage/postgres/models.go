@@ -199,3 +199,48 @@ func bankQuestionModelsToDomain(rows []BankQuestionModel) ([]*domain.BankQuestio
 	}
 	return records, nil
 }
+
+type ReportModel struct {
+	ID             string         `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	InterviewID    string         `gorm:"column:interview_id"`
+	KnowledgeDepth int            `gorm:"column:knowledge_depth"`
+	Expression     int            `gorm:"column:expression"`
+	ProblemSolving int            `gorm:"column:problem_solving"`
+	CodeQuality    int            `gorm:"column:code_quality"`
+	StressResponse int            `gorm:"column:stress_response"`
+	Summary        string         `gorm:"column:summary"`
+	WeakPoints     datatypes.JSON `gorm:"column:weak_points;type:jsonb"`
+	StrongPoints   datatypes.JSON `gorm:"column:strong_points;type:jsonb"`
+	ErrorMessage   string         `gorm:"column:error_message"`
+	CreatedAt      time.Time      `gorm:"column:created_at"`
+}
+
+func (ReportModel) TableName() string {
+	return "reports"
+}
+
+func (m ReportModel) toDomain() (*domain.Report, error) {
+	r := &domain.Report{
+		ID:             m.ID,
+		InterviewID:    m.InterviewID,
+		KnowledgeDepth: m.KnowledgeDepth,
+		Expression:     m.Expression,
+		ProblemSolving: m.ProblemSolving,
+		CodeQuality:    m.CodeQuality,
+		StressResponse: m.StressResponse,
+		Summary:        m.Summary,
+		ErrorMessage:   m.ErrorMessage,
+		CreatedAt:      m.CreatedAt,
+	}
+	if len(m.WeakPoints) > 0 {
+		if err := json.Unmarshal(m.WeakPoints, &r.WeakPoints); err != nil {
+			return nil, fmt.Errorf("unmarshal weak_points: %w", err)
+		}
+	}
+	if len(m.StrongPoints) > 0 {
+		if err := json.Unmarshal(m.StrongPoints, &r.StrongPoints); err != nil {
+			return nil, fmt.Errorf("unmarshal strong_points: %w", err)
+		}
+	}
+	return r, nil
+}

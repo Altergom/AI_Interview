@@ -15,6 +15,9 @@ type InterviewTurnRepository interface {
 	// SaveTurn 写入一条 turn。同 (interview_id, turn_id) 冲突时 DO NOTHING，
 	// 避免重试调用覆盖首次写入内容。
 	SaveTurn(ctx context.Context, turn domain.InterviewTurn) error
+
+	// ListByInterview 按 interview_id 查询所有 turns，按 created_at 升序。
+	ListByInterview(ctx context.Context, interviewID string) ([]domain.InterviewTurn, error)
 }
 
 // InterviewTurnRepo InterviewTurnRepository 的 GORM 实现。
@@ -54,4 +57,21 @@ func (r *InterviewTurnRepo) SaveTurn(ctx context.Context, turn domain.InterviewT
 		return fmt.Errorf("gorm create: %w", err)
 	}
 	return nil
+}
+
+// ListByInterview 按 interview_id 查询所有 turns，按 created_at 升序。
+func (r *InterviewTurnRepo) ListByInterview(ctx context.Context, interviewID string) ([]domain.InterviewTurn, error) {
+	var rows []InterviewTurnModel
+	if err := r.db.WithContext(ctx).
+		Where(&InterviewTurnModel{InterviewID: interviewID}).
+		Order("created_at").
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("[InterviewTurnRepo] list by interview: %w", err)
+	}
+
+	out := make([]domain.InterviewTurn, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.toDomain())
+	}
+	return out, nil
 }
