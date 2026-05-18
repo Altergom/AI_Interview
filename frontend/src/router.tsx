@@ -1,6 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
-import { authStorage } from './utils/storage';
 import { Loading } from './components/common/Loading';
 import { useAuthStore } from './store/authStore';
 
