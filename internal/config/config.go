@@ -74,7 +74,9 @@ type Config struct {
 	// Milvus 向量数据库
 	MilvusAddr       string // host:port，默认 127.0.0.1:19530
 	MilvusCollection string // 题库向量集合名，默认 bank_questions_vec
-
+	MilvusAPIKey     string //
+	MilvusEnableTLS  bool   // Zilliz Cloud 必须 true
+	
 	// Elasticsearch
 	ESAddrs    []string // 节点地址列表，逗号分隔
 	ESUsername string

@@ -31,13 +31,18 @@ type Client struct {
 
 // Options Milvus 连接配置。
 type Options struct {
-	Addr       string // host:port，默认 127.0.0.1:19530
-	Collection string // 集合名，默认 bank_questions_vec
+	Addr          string // host:port，默认 127.0.0.1:19530
+	Collection    string // 集合名，默认 bank_questions_vec
+	APIKey        string // ziiliz cloud api key
+	EnableTLSAuth bool   // 启动 TLS
 }
 
 // New 建立 Milvus gRPC 连接，不初始化集合。
 func New(ctx context.Context, opts Options) (*Client, error) {
-	c, err := client.NewClient(ctx, client.Config{Address: opts.Addr})
+	c, err := client.NewClient(ctx, client.Config{Address: opts.Addr,
+		APIKey:        opts.APIKey,
+		EnableTLSAuth: opts.EnableTLSAuth,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("connect milvus %s: %w", opts.Addr, err)
 	}

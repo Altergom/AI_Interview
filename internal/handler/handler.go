@@ -150,8 +150,10 @@ func (r *Router) register(h *server.Hertz) {
 	report.GET("/status", r.report.Status)
 	report.GET("", r.report.Get)
 
-	// 问卷模块
+	// 问卷模块（/submit 接 IP+USER 双维度限流，防 SFT 数据滥提）
 	questionnaire := v1.Group("/questionnaire", hauth)
 	questionnaire.GET("", r.questionnaire.Get)
-	questionnaire.POST("/submit", r.questionnaire.Submit)
+	questionnaire.POST("/submit",
+		ratelimit.Middleware(r.rdb, "questionnaire.submit"),
+		r.questionnaire.Submit)
 }

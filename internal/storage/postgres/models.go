@@ -66,6 +66,62 @@ func (InterviewModel) TableName() string {
 	return "interviews"
 }
 
+type InterviewTurnModel struct {
+	ID          string    `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	InterviewID string    `gorm:"column:interview_id"`
+	TurnID      string    `gorm:"column:turn_id"`
+	Stage       string    `gorm:"column:stage"`
+	Question    string    `gorm:"column:question"`
+	UserAnswer  string    `gorm:"column:user_answer"`
+	ASRRaw      string    `gorm:"column:asr_raw"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+}
+
+func (InterviewTurnModel) TableName() string {
+	return "interview_turns"
+}
+
+func (m InterviewTurnModel) toDomain() domain.InterviewTurn {
+	return domain.InterviewTurn{
+		ID:          m.ID,
+		InterviewID: m.InterviewID,
+		TurnID:      m.TurnID,
+		Stage:       m.Stage,
+		Question:    m.Question,
+		UserAnswer:  m.UserAnswer,
+		ASRRaw:      m.ASRRaw,
+		CreatedAt:   m.CreatedAt,
+	}
+}
+
+type QuestionnaireResultModel struct {
+	ID          string     `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	InterviewID string     `gorm:"column:interview_id"`
+	TurnID      string     `gorm:"column:turn_id"`
+	Quality     string     `gorm:"column:quality"`
+	Feedback    string     `gorm:"column:feedback"`
+	UserID      string     `gorm:"column:user_id"`
+	CreatedAt   time.Time  `gorm:"column:created_at"`
+	UpdatedAt   time.Time  `gorm:"column:updated_at"`
+	ExportedAt  *time.Time `gorm:"column:exported_at"`
+}
+
+func (QuestionnaireResultModel) TableName() string {
+	return "questionnaire_results"
+}
+
+func (m QuestionnaireResultModel) toDomain() domain.QuestionnaireResult {
+	return domain.QuestionnaireResult{
+		ID:          m.ID,
+		InterviewID: m.InterviewID,
+		TurnID:      m.TurnID,
+		Quality:     domain.QuestionnaireQuality(m.Quality),
+		Feedback:    m.Feedback,
+		UserID:      m.UserID,
+		CreatedAt:   m.CreatedAt,
+	}
+}
+
 func newResumeModel(userID, hash, s3Key string, resume *domain.StructuredResume) (*ResumeModel, error) {
 	data, err := json.Marshal(resume)
 	if err != nil {

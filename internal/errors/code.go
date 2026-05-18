@@ -27,6 +27,8 @@ const (
 	// ─── 面试 3xxx ────────────────────────────────────────────────
 	CodeInterviewSessionNotFound ErrorCode = 3001
 	CodeInterviewStageInvalid    ErrorCode = 3002
+	CodeInterviewForbidden       ErrorCode = 3003
+	CodeInterviewTurnNotFound    ErrorCode = 3004
 
 	// ─── 存储 4xxx ────────────────────────────────────────────────
 	CodeStorageUploadFailed ErrorCode = 4001
@@ -76,6 +78,8 @@ var defaultMessages = map[ErrorCode]string{
 
 	CodeInterviewSessionNotFound: "面试会话不存在",
 	CodeInterviewStageInvalid:    "当前阶段不支持此操作",
+	CodeInterviewForbidden:       "无权访问该面试",
+	CodeInterviewTurnNotFound:    "面试 turn 不存在",
 
 	CodeStorageUploadFailed: "文件上传失败",
 	CodeStorageNotFound:     "文件不存在",

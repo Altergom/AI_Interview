@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card } from '../../components/common/Card';
 import { formatStage } from '../../utils/formatters';
+import { MAX_FEEDBACK_LENGTH } from '../../services/questionnaire';
 import type { InterviewTurn } from '../../types/interview';
 
 interface TurnItemProps {
@@ -11,6 +12,8 @@ interface TurnItemProps {
 export const TurnItem = ({ turn, onFeedbackChange }: TurnItemProps) => {
   const [quality, setQuality] = useState<'good' | 'bad' | null>(null);
   const [feedback, setFeedback] = useState('');
+  // 仅当 ASR 原文与最终采用的 user_answer 不同时才单独展示，避免视觉冗余
+  const showAsrRaw = !!turn.asr_raw && turn.asr_raw !== turn.user_answer;
 
   const handleQualityChange = (newQuality: 'good' | 'bad') => {
     setQuality(newQuality);
@@ -30,6 +33,9 @@ export const TurnItem = ({ turn, onFeedbackChange }: TurnItemProps) => {
         <span className="text-xs text-gray-500">{formatStage(turn.stage)}</span>
         <h4 className="font-semibold text-gray-900 mt-1">问题：{turn.question}</h4>
         <p className="text-sm text-gray-600 mt-2">您的回答：{turn.user_answer}</p>
+        {showAsrRaw && (
+          <p className="text-xs text-gray-400 mt-1">ASR 原文：{turn.asr_raw}</p>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -69,7 +75,11 @@ export const TurnItem = ({ turn, onFeedbackChange }: TurnItemProps) => {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             rows={2}
             placeholder="请描述您的想法..."
+            maxLength={MAX_FEEDBACK_LENGTH}
           />
+          <div className="text-xs text-gray-400 text-right mt-1">
+            {feedback.length}/{MAX_FEEDBACK_LENGTH}
+          </div>
         </div>
       </div>
     </Card>

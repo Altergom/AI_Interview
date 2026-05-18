@@ -76,11 +76,12 @@ func bizHTTPStatus(code biz.ErrorCode) int {
 	switch code {
 	case biz.CodeUnauthorized, biz.CodeWrongPassword:
 		return http.StatusUnauthorized
-	case biz.CodeForbidden:
+	case biz.CodeForbidden, biz.CodeInterviewForbidden:
 		return http.StatusForbidden
 	case biz.CodeNotFound,
 		biz.CodeResumeNotFound,
 		biz.CodeInterviewSessionNotFound,
+		biz.CodeInterviewTurnNotFound,
 		biz.CodeStorageNotFound,
 		biz.CodeKnowledgeBaseNotFound,
 		biz.CodeInterviewScheduleNotFound,

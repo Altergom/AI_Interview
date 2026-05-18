@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
-import { authStorage } from './utils/storage';
 import { Loading } from './components/common/Loading';
+import { useAuthStore } from './store/authStore';
 
 // 懒加载页面组件
 const Index = lazy(() => import('./pages/Index').then(m => ({ default: m.Index })));
@@ -27,19 +27,15 @@ const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
 
 // 路由守卫：需要认证
 const RequireAuth = ({ children }: { children: React.ReactNode }) => {
-  const token = authStorage.getToken();
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
+  const token = useAuthStore((s) => s.token);
+  if (!token) return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
 
 // 路由守卫：已认证用户重定向
 const RedirectIfAuth = ({ children }: { children: React.ReactNode }) => {
-  const token = authStorage.getToken();
-  if (token) {
-    return <Navigate to="/resume" replace />;
-  }
+  const token = useAuthStore((s) => s.token);
+  if (token) return <Navigate to="/resume" replace />;
   return <>{children}</>;
 };
 
