@@ -43,7 +43,7 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
-	if err := postgres.RunMigrations(ctx, db.Conn(), "migrations"); err != nil {
+	if err := postgres.RunMigrations(ctx, db.Gorm(), "migrations"); err != nil {
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 

@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -36,10 +35,9 @@ func (o *Options) withDefaults() {
 	}
 }
 
-// DB wraps the GORM handle and its underlying connection pool.
+// DB wraps the GORM handle.
 type DB struct {
 	gorm *gorm.DB
-	conn *sql.DB
 }
 
 // New initializes PostgreSQL.
@@ -69,23 +67,26 @@ func New(ctx context.Context, opts Options) (*DB, error) {
 	log.Infof("[Postgres] connected, maxOpen=%d maxIdle=%d lifetime=%s idleTime=%s",
 		opts.MaxOpenConns, opts.MaxIdleConns, opts.ConnMaxLifetime, opts.ConnMaxIdleTime)
 
-	return &DB{gorm: gormDB, conn: conn}, nil
+	return &DB{gorm: gormDB}, nil
 }
 
 // Close closes the underlying connection pool.
 func (db *DB) Close() error {
 	log.Infof("[Postgres] closing connection pool")
-	return db.conn.Close()
+	conn, err := db.gorm.DB()
+	if err != nil {
+		return fmt.Errorf("get postgres sql db: %w", err)
+	}
+	return conn.Close()
 }
 
 // Ping checks database connectivity.
 func (db *DB) Ping(ctx context.Context) error {
-	return db.conn.PingContext(ctx)
-}
-
-// Conn returns the underlying *sql.DB for migrations and connection pool control.
-func (db *DB) Conn() *sql.DB {
-	return db.conn
+	conn, err := db.gorm.DB()
+	if err != nil {
+		return fmt.Errorf("get postgres sql db: %w", err)
+	}
+	return conn.PingContext(ctx)
 }
 
 // Gorm returns the GORM handle for runtime business repositories.

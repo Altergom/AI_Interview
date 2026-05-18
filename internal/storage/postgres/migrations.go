@@ -2,18 +2,17 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"gorm.io/gorm"
 )
 
-// RunMigrations 执行指定目录下的 SQL migration 文件。
-// migrationsDir: migration 文件所在目录路径（如 "./migrations"）
-// 按文件名字典序执行（001_init.sql, 002_xxx.sql...）。
-func RunMigrations(ctx context.Context, db *sql.DB, migrationsDir string) error {
+// RunMigrations executes SQL migration files in lexical order.
+func RunMigrations(ctx context.Context, db *gorm.DB, migrationsDir string) error {
 	if err := ensureMigrationsTable(ctx, db); err != nil {
 		return err
 	}
@@ -34,21 +33,25 @@ func RunMigrations(ctx context.Context, db *sql.DB, migrationsDir string) error 
 	return nil
 }
 
-func ensureMigrationsTable(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `
+func ensureMigrationsTable(ctx context.Context, db *gorm.DB) error {
+	err := db.WithContext(ctx).Exec(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version VARCHAR(255) PRIMARY KEY,
 			applied_at TIMESTAMP NOT NULL DEFAULT NOW()
 		)
-	`)
-	return err
+	`).Error
+	if err != nil {
+		return fmt.Errorf("ensure migrations table: %w", err)
+	}
+	return nil
 }
 
-func runMigrationFile(ctx context.Context, db *sql.DB, file, name string) error {
-	var count int
-	err := db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM schema_migrations WHERE version = $1`, name,
-	).Scan(&count)
+func runMigrationFile(ctx context.Context, db *gorm.DB, file, name string) error {
+	var count int64
+	err := db.WithContext(ctx).
+		Model(&SchemaMigrationModel{}).
+		Where(&SchemaMigrationModel{Version: name}).
+		Count(&count).Error
 	if err != nil {
 		return fmt.Errorf("check migration %s: %w", name, err)
 	}
@@ -61,22 +64,27 @@ func runMigrationFile(ctx context.Context, db *sql.DB, file, name string) error 
 		return fmt.Errorf("read migration %s: %w", name, err)
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	sqlText := strings.TrimSpace(string(content))
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(sqlText).Error; err != nil {
+			return fmt.Errorf("exec migration %s: %w", name, err)
+		}
+		if err := tx.Create(&SchemaMigrationModel{Version: name}).Error; err != nil {
+			return fmt.Errorf("record migration %s: %w", name, err)
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("begin tx for %s: %w", name, err)
+		return err
 	}
 
-	if _, err := tx.ExecContext(ctx, strings.TrimSpace(string(content))); err != nil {
-		tx.Rollback()
-		return fmt.Errorf("exec migration %s: %w", name, err)
-	}
+	return nil
+}
 
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO schema_migrations (version) VALUES ($1)`, name,
-	); err != nil {
-		tx.Rollback()
-		return fmt.Errorf("record migration %s: %w", name, err)
-	}
+type SchemaMigrationModel struct {
+	Version string `gorm:"column:version;primaryKey"`
+}
 
-	return tx.Commit()
+func (SchemaMigrationModel) TableName() string {
+	return "schema_migrations"
 }
