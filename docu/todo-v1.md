@@ -223,13 +223,13 @@
 > 从 day 1 抽象统一管道，避免后期重构。v1 只实现语音输入分支。
 
 - [x] 定义 `Report` / `ReportDimensions` 领域类型
-- [ ] 定义 `EvaluationPipeline` 接口（`internal/einocore/evaluation/pipeline.go`）
-- [ ] 定义 `Turn` 输入结构（同时支持 `text` + `audio_transcript`）
-- [ ] 实现 `BatchScore`：分批评估（每批 8 turn），降低单次 LLM 上下文压力
-- [ ] 实现 `Aggregate` 骨架：跨批分数加权（v1 简单平均，v2 增强）
-- [ ] 实现 `Fallback`：LLM 失败返回保底报告（基于规则给中等分数 + 错误说明）
-- [ ] 所有 JSON 输出必须经 `StructuredOutputInvoker`
-- [ ] v1 实现语音输入分支（文字分支留接口给 v2）
+- [x] 定义 `EvaluationPipeline` 接口（`internal/einocore/evaluation/pipeline.go`）
+- [x] 定义 `Turn` 输入结构（同时支持 `text` + `audio_transcript`）
+- [x] 实现 `BatchScore`：分批评估（每批 8 turn），降低单次 LLM 上下文压力
+- [x] 实现 `Aggregate` 骨架：跨批分数加权（v1 简单平均，v2 增强）
+- [x] 实现 `Fallback`：LLM 失败返回保底报告（基于规则给中等分数 + 错误说明）
+- [x] 所有 JSON 输出必须经 `StructuredOutputInvoker`
+- [x] v1 实现语音输入分支（文字分支留接口给 v2）
 
 ---
 
