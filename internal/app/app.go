@@ -6,6 +6,7 @@ import (
 
 	"ai_interview/internal/auth"
 	"ai_interview/internal/config"
+	"ai_interview/internal/domain"
 	"ai_interview/internal/einocore/agent"
 	"ai_interview/internal/einocore/compose"
 	"ai_interview/internal/handler"
@@ -108,7 +109,8 @@ func New(cfg *config.Config) (*App, error) {
 	sessionManager := service.NewSessionManager(rdb, cfg.InterviewStateTTL)
 
 	// 7. AI 层
-	supervisor, err := agent.NewSupervisor(ctx, agent.SupervisorConfig{
+	// 显式 workflow 不再创建全局 Supervisor，而是先按阶段装配 ADK Agent。
+	stageAgents, err := agent.NewStageAgents(ctx, agent.StageAgentsConfig{
 		SelectorCfg: agent.SelectorConfig{
 			SkillsDir:   cfg.SkillsDir,
 			RedisClient: rdb.Client(),
@@ -116,9 +118,31 @@ func New(cfg *config.Config) (*App, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("new supervisor: %w", err)
+		return nil, fmt.Errorf("new stage agents: %w", err)
 	}
-	graph, err := compose.NewInterviewGraph(ctx, supervisor)
+	// Graph 只负责阶段路由和状态机裁决，具体阶段执行交给对应 ADKStageAgent。
+	graph, err := compose.NewInterviewGraph(ctx, compose.InterviewGraphConfig{
+		IntroAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageIntro,
+			Prompt: compose.GetSystemPromptForStage(domain.StageIntro),
+			Agent:  stageAgents.Intro,
+		},
+		QuestioningAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageQuestioning,
+			Prompt: compose.GetSystemPromptForStage(domain.StageQuestioning),
+			Agent:  stageAgents.Questioning,
+		},
+		AlgorithmAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageAlgorithm,
+			Prompt: compose.GetSystemPromptForStage(domain.StageAlgorithm),
+			Agent:  stageAgents.Algorithm,
+		},
+		ClosingAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageClosing,
+			Prompt: compose.GetSystemPromptForStage(domain.StageClosing),
+			Agent:  stageAgents.Closing,
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("new interview graph: %w", err)
 	}

@@ -80,17 +80,23 @@ func NewSelector(ctx context.Context, cfg SelectorConfig) (*adk.ChatModelAgent, 
 
 // selectorInstruction 是注入给 question_selector 的基础 Instruction。
 // Skill middleware 会在此基础上追加 Skills System 说明和可用 Skill 列表。
+// stage 参数让同一个 selector 在 intro/questioning/algorithm 中保持不同语义。
 const selectorInstruction = `你是一位技术面试出题 Agent。
 
 你的职责：
-1. 根据输入的岗位方向，调用对应的 skill 工具获取出题规则
-2. 严格按照 skill 返回的规则生成下一道技术面试题
+1. 根据输入的 stage 和岗位方向，调用对应的 skill 工具获取出题规则
+2. 严格按照 stage 语义生成当前阶段需要的问题
 3. 确保问题不与已出过的题目重复（已出题目会在 context 中提供）
 
 工作流程：
-1. 接收岗位方向（如 go-backend / java-backend / frontend / algorithm / ai-agent）
-2. 调用 skill 工具加载该方向的完整出题规则
-3. 按规则生成一道合适的技术问题
+1. 接收 stage: intro | questioning | algorithm | closing
+2. 接收岗位方向（如 go-backend / java-backend / frontend / algorithm / ai-agent）
+3. 调用 skill 工具加载该方向的完整出题规则
+4. 按 stage 生成合适问题：
+   - intro：生成背景、项目、技术栈追问
+   - questioning：生成技术追问或下一道技术问题
+   - algorithm：选择算法题
+   - closing：通常不需要出题，除非用于澄清候选人反问
 
 输出格式要求：
 - 只返回问题本身，不要加序号、解析或参考答案
