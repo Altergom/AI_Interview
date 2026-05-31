@@ -20,10 +20,7 @@ type SupervisorConfig struct {
 	SelectorCfg SelectorConfig
 }
 
-// NewSupervisor 创建遗留全局 Supervisor Agent。
-//
-// Deprecated: 新的显式 workflow 已改用 NewStageAgents 构造阶段 Agent，
-// 该构造函数仅为兼容旧测试或潜在旧调用方保留。
+// NewSupervisor 创建面试 Supervisor Agent（Agent 驱动模式使用）。
 // 所有外部依赖（Redis、SkillsDir）通过 cfg 注入，避免内部硬编码。
 func NewSupervisor(ctx context.Context, cfg SupervisorConfig) (adk.ResumableAgent, error) {
 	model, err := llm.Registry.NewChatModel(ctx, llm.RoleSupervisor)
