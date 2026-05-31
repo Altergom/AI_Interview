@@ -171,7 +171,7 @@ func (s *interviewServiceImpl) ProcessAudio(ctx context.Context, req AudioReques
 		return fmt.Errorf("[interview] update session: %w", err)
 	}
 
-	// 更新 InterviewState 阶段
+	// GraphOutput.NewStage 是状态机裁决后的结果，需要同步到 Redis InterviewState。
 	if state != nil && output.NewStage != "" && output.NewStage != state.Stage {
 		state.Stage = output.NewStage
 		if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
@@ -196,14 +196,15 @@ func (s *interviewServiceImpl) Finish(ctx context.Context, interviewID string) (
 
 	duration := time.Since(session.CreatedAt)
 
-	if err := s.sessionManager.UpdateStage(ctx, interviewID, domain.StageClosing); err != nil {
+	// 手动结束和 workflow 的 closing + finish 保持一致，都落到显式终态 StageEnd。
+	if err := s.sessionManager.UpdateStage(ctx, interviewID, domain.StageEnd); err != nil {
 		return nil, fmt.Errorf("[interview] update stage: %w", err)
 	}
 
-	// 更新 state 的 ReportStatus
+	// Redis state 也必须进入 StageEnd，否则前端和后续报告流程会看到不一致状态。
 	state, err := s.redisCli.GetInterviewState(ctx, interviewID)
 	if err == nil && state != nil {
-		state.Stage = domain.StageClosing
+		state.Stage = domain.StageEnd
 		state.ReportStatus = "pending"
 		if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
 			log.Warnf("[InterviewService] save state on finish interview_id=%s: %v", interviewID, err)
@@ -292,6 +293,17 @@ func (s *interviewServiceImpl) SubmitCode(ctx context.Context, req CodeSubmitReq
 
 	if err := s.sessionManager.IncrementAlgorithmCount(ctx, req.InterviewID); err != nil {
 		return fmt.Errorf("[interview] increment algorithm count: %w", err)
+	}
+
+	// 代码提交也可能触发 algorithm -> closing，需要和音频流程一样同步 Redis state。
+	if output.NewStage != "" && output.NewStage != session.Stage {
+		state, err := s.redisCli.GetInterviewState(ctx, req.InterviewID)
+		if err == nil && state != nil {
+			state.Stage = output.NewStage
+			if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
+				log.Warnf("[InterviewService] save state after code stage change interview_id=%s: %v", req.InterviewID, err)
+			}
+		}
 	}
 
 	// 代码提交也算一个 turn，asr_raw 保持为空（非语音输入）

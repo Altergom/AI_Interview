@@ -92,6 +92,11 @@ type Config struct {
 	ResumeRedisTTL    time.Duration
 	InterviewStateTTL time.Duration
 
+	// 面试流程驱动模式
+	// WorkflowEnabled=true 使用显式 workflow（StageRouter + 状态机裁决）；
+	// WorkflowEnabled=false 使用 Agent Supervisor 驱动模式。
+	WorkflowEnabled bool
+
 	// Skill 出题模块
 	// SkillsDir SKILL.md 所在父目录的绝对路径，默认 "internal/einocore/skills"（相对项目根）
 	SkillsDir string

@@ -1,10 +1,21 @@
 package compose
 
 import (
+	"context"
 	"testing"
 
 	"ai_interview/internal/domain"
 )
+
+type fakeStageAgent struct {
+	result StageResult
+	inputs []StageInput
+}
+
+func (f *fakeStageAgent) Run(_ context.Context, input StageInput) (StageResult, error) {
+	f.inputs = append(f.inputs, input)
+	return f.result, nil
+}
 
 func TestGetSystemPrompt(t *testing.T) {
 	tests := []struct {
@@ -36,7 +47,8 @@ func TestGetNextStage(t *testing.T) {
 		{domain.StageIntro, domain.StageQuestioning},
 		{domain.StageQuestioning, domain.StageAlgorithm},
 		{domain.StageAlgorithm, domain.StageClosing},
-		{domain.StageClosing, domain.StageClosing}, // 最后阶段不变
+		{domain.StageClosing, domain.StageEnd},
+		{domain.StageEnd, domain.StageEnd},
 	}
 
 	for _, tt := range tests {
@@ -210,5 +222,116 @@ func TestParseSupervisorOutput_JSON(t *testing.T) {
 				t.Errorf("parseSupervisorOutput() NewStage = %v, want %v", got.NewStage, tt.wantStage)
 			}
 		})
+	}
+}
+
+func TestInterviewGraph_WorkflowAdvance(t *testing.T) {
+	introAgent := &fakeStageAgent{result: StageResult{
+		Response:    "进入技术问答",
+		NeedTTS:     true,
+		AgentAction: "advance",
+		Metadata: map[string]any{
+			"detected_skills": []string{"Go", "Redis"},
+		},
+	}}
+	graph := newFakeGraph(t, InterviewGraphConfig{
+		IntroAgent:       introAgent,
+		QuestioningAgent: &fakeStageAgent{result: continueResult("questioning")},
+		AlgorithmAgent:   &fakeStageAgent{result: continueResult("algorithm")},
+		ClosingAgent:     &fakeStageAgent{result: continueResult("closing")},
+	})
+
+	output, err := graph.Invoke(context.Background(), GraphInput{
+		Text:        "我熟悉 Go 和 Redis",
+		InterviewID: "wf-advance",
+		Stage:       domain.StageIntro,
+		Context:     map[string]any{"detected_skills": []string{"old"}},
+	})
+	if err != nil {
+		t.Fatalf("Invoke failed: %v", err)
+	}
+
+	if output.NewStage != domain.StageQuestioning {
+		t.Fatalf("NewStage = %s, want %s", output.NewStage, domain.StageQuestioning)
+	}
+	if output.Text != "进入技术问答" {
+		t.Fatalf("Text = %q", output.Text)
+	}
+	if got := output.Context["next_stage"]; got != domain.StageQuestioning.String() {
+		t.Fatalf("next_stage metadata = %v", got)
+	}
+	if len(introAgent.inputs) != 1 || introAgent.inputs[0].Stage != domain.StageIntro {
+		t.Fatalf("intro agent was not called with intro stage")
+	}
+}
+
+func TestInterviewGraph_ClosingFinishToEnd(t *testing.T) {
+	graph := newFakeGraph(t, InterviewGraphConfig{
+		IntroAgent:       &fakeStageAgent{result: continueResult("intro")},
+		QuestioningAgent: &fakeStageAgent{result: continueResult("questioning")},
+		AlgorithmAgent:   &fakeStageAgent{result: continueResult("algorithm")},
+		ClosingAgent: &fakeStageAgent{result: StageResult{
+			Response:    "感谢参加面试",
+			AgentAction: "finish",
+		}},
+	})
+
+	output, err := graph.Invoke(context.Background(), GraphInput{
+		Text:        "没有问题了",
+		InterviewID: "wf-end",
+		Stage:       domain.StageClosing,
+		Context:     map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("Invoke failed: %v", err)
+	}
+	if output.NewStage != domain.StageEnd {
+		t.Fatalf("NewStage = %s, want %s", output.NewStage, domain.StageEnd)
+	}
+}
+
+func TestInterviewGraph_EndStageRejectsInput(t *testing.T) {
+	introAgent := &fakeStageAgent{result: continueResult("intro")}
+	graph := newFakeGraph(t, InterviewGraphConfig{
+		IntroAgent:       introAgent,
+		QuestioningAgent: &fakeStageAgent{result: continueResult("questioning")},
+		AlgorithmAgent:   &fakeStageAgent{result: continueResult("algorithm")},
+		ClosingAgent:     &fakeStageAgent{result: continueResult("closing")},
+	})
+
+	output, err := graph.Invoke(context.Background(), GraphInput{
+		Text:        "还能继续吗",
+		InterviewID: "wf-ended",
+		Stage:       domain.StageEnd,
+		Context:     map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("Invoke failed: %v", err)
+	}
+	if output.NewStage != domain.StageEnd {
+		t.Fatalf("NewStage = %s, want %s", output.NewStage, domain.StageEnd)
+	}
+	if output.Text != endedMessage {
+		t.Fatalf("Text = %q, want %q", output.Text, endedMessage)
+	}
+	if len(introAgent.inputs) != 0 {
+		t.Fatalf("end stage should not call stage agents")
+	}
+}
+
+func newFakeGraph(t *testing.T, cfg InterviewGraphConfig) *InterviewGraph {
+	t.Helper()
+	graph, err := NewInterviewGraph(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("NewInterviewGraph failed: %v", err)
+	}
+	return graph
+}
+
+func continueResult(text string) StageResult {
+	return StageResult{
+		Response:    text,
+		AgentAction: "continue",
+		Metadata:    map[string]any{},
 	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"ai_interview/internal/auth"
 	"ai_interview/internal/config"
+	"ai_interview/internal/domain"
 	"ai_interview/internal/einocore"
 	"ai_interview/internal/einocore/agent"
 	"ai_interview/internal/einocore/compose"
@@ -48,7 +49,7 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init postgres: %w", err)
 	}
-	if err := postgres.RunMigrations(ctx, db.Conn(), "migrations"); err != nil {
+	if err := postgres.RunMigrations(ctx, db.Gorm(), "migrations"); err != nil {
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
@@ -113,19 +114,9 @@ func New(cfg *config.Config) (*App, error) {
 	sessionManager := service.NewSessionManager(rdb, cfg.InterviewStateTTL)
 
 	// 7. AI 层
-	supervisor, err := agent.NewSupervisor(ctx, agent.SupervisorConfig{
-		SelectorCfg: agent.SelectorConfig{
-			SkillsDir:   cfg.SkillsDir,
-			RedisClient: rdb.Client(),
-			AskedQTTL:   cfg.InterviewStateTTL,
-		},
-	})
+	graph, err := buildInterviewGraph(ctx, cfg, rdb)
 	if err != nil {
-		return nil, fmt.Errorf("new supervisor: %w", err)
-	}
-	graph, err := compose.NewInterviewGraph(ctx, supervisor)
-	if err != nil {
-		return nil, fmt.Errorf("new interview graph: %w", err)
+		return nil, err
 	}
 
 	// 8. MQ（可选，MQ_BROKER_URL 为空时跳过）
@@ -200,4 +191,61 @@ func (a *App) Shutdown() {
 	a.redis.Close()
 	a.db.Close()
 	a.milvus.Close()
+}
+
+// buildInterviewGraph 根据配置选择 workflow 或 agent 驱动模式构建面试 Graph。
+func buildInterviewGraph(ctx context.Context, cfg *config.Config, rdb *sredis.Client) (*compose.InterviewGraph, error) {
+	if cfg.WorkflowEnabled {
+		return buildWorkflowGraph(ctx, cfg, rdb)
+	}
+	return buildAgentGraph(ctx, cfg, rdb)
+}
+
+func buildWorkflowGraph(ctx context.Context, cfg *config.Config, rdb *sredis.Client) (*compose.InterviewGraph, error) {
+	stageAgents, err := agent.NewStageAgents(ctx, agent.StageAgentsConfig{
+		SelectorCfg: agent.SelectorConfig{
+			SkillsDir:   cfg.SkillsDir,
+			RedisClient: rdb.Client(),
+			AskedQTTL:   cfg.InterviewStateTTL,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("new stage agents: %w", err)
+	}
+	return compose.NewInterviewGraph(ctx, compose.InterviewGraphConfig{
+		IntroAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageIntro,
+			Prompt: compose.GetSystemPromptForStage(domain.StageIntro),
+			Agent:  stageAgents.Intro,
+		},
+		QuestioningAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageQuestioning,
+			Prompt: compose.GetSystemPromptForStage(domain.StageQuestioning),
+			Agent:  stageAgents.Questioning,
+		},
+		AlgorithmAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageAlgorithm,
+			Prompt: compose.GetSystemPromptForStage(domain.StageAlgorithm),
+			Agent:  stageAgents.Algorithm,
+		},
+		ClosingAgent: &compose.ADKStageAgent{
+			Stage:  domain.StageClosing,
+			Prompt: compose.GetSystemPromptForStage(domain.StageClosing),
+			Agent:  stageAgents.Closing,
+		},
+	})
+}
+
+func buildAgentGraph(ctx context.Context, cfg *config.Config, rdb *sredis.Client) (*compose.InterviewGraph, error) {
+	sup, err := agent.NewSupervisor(ctx, agent.SupervisorConfig{
+		SelectorCfg: agent.SelectorConfig{
+			SkillsDir:   cfg.SkillsDir,
+			RedisClient: rdb.Client(),
+			AskedQTTL:   cfg.InterviewStateTTL,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("new supervisor: %w", err)
+	}
+	return compose.NewAgentDrivenGraph(ctx, sup)
 }

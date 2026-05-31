@@ -20,7 +20,7 @@ type SupervisorConfig struct {
 	SelectorCfg SelectorConfig
 }
 
-// NewSupervisor 创建面试 Supervisor Agent。
+// NewSupervisor 创建面试 Supervisor Agent（Agent 驱动模式使用）。
 // 所有外部依赖（Redis、SkillsDir）通过 cfg 注入，避免内部硬编码。
 func NewSupervisor(ctx context.Context, cfg SupervisorConfig) (adk.ResumableAgent, error) {
 	model, err := llm.Registry.NewChatModel(ctx, llm.RoleSupervisor)
