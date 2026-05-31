@@ -25,14 +25,15 @@ type LoginRequest struct {
 	Password string
 }
 
+// 改后
 type AuthResult struct {
-	UserID   string
-	Username string
-	Token    string
+    UserID   string `json:"user_id"`
+    Username string `json:"username"`
+    Token    string `json:"token"`
 }
 
 type GuestResult struct {
-	UserID    string
-	Token     string
-	ExpiresAt string
+    UserID    string `json:"user_id"`
+    Token     string `json:"token"`
+    ExpiresAt string `json:"expires_at"`
 }

@@ -1,0 +1,246 @@
+package postgres
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"ai_interview/internal/domain"
+
+	"gorm.io/datatypes"
+)
+
+type UserModel struct {
+	ID           string    `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	Email        string    `gorm:"column:email"`
+	Username     string    `gorm:"column:username"`
+	PasswordHash string    `gorm:"column:password_hash"`
+	IsGuest      bool      `gorm:"column:is_guest"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+}
+
+func (UserModel) TableName() string {
+	return "users"
+}
+
+type ResumeModel struct {
+	ID          string         `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	UserID      string         `gorm:"column:user_id"`
+	ContentHash string         `gorm:"column:content_hash"`
+	S3Key       string         `gorm:"column:s3_key"`
+	ParsedData  datatypes.JSON `gorm:"column:parsed_data;type:jsonb"`
+	CreatedAt   time.Time      `gorm:"column:created_at"`
+	UpdatedAt   time.Time      `gorm:"column:updated_at"`
+}
+
+func (ResumeModel) TableName() string {
+	return "resumes"
+}
+
+type BankQuestionModel struct {
+	ID                  string         `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	Question            string         `gorm:"column:question"`
+	StandardAnswer      string         `gorm:"column:standard_answer"`
+	Tags                datatypes.JSON `gorm:"column:tags;type:jsonb;default:'[]'"`
+	RelatedConcepts     datatypes.JSON `gorm:"column:related_concepts;type:jsonb;default:'[]'"`
+	FollowupQuestionIDs datatypes.JSON `gorm:"column:followup_question_ids;type:jsonb;default:'[]'"`
+	Difficulty          string         `gorm:"column:difficulty;default:medium"`
+	VecStatus           string         `gorm:"column:vec_status;default:pending"`
+	CreatedAt           time.Time      `gorm:"column:created_at"`
+	UpdatedAt           time.Time      `gorm:"column:updated_at"`
+}
+
+func (BankQuestionModel) TableName() string {
+	return "bank_questions"
+}
+
+type InterviewModel struct {
+	ID        string     `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	UserID    string     `gorm:"column:user_id"`
+	StartedAt time.Time  `gorm:"column:started_at"`
+	EndedAt   *time.Time `gorm:"column:ended_at"`
+	Status    string     `gorm:"column:status"`
+}
+
+func (InterviewModel) TableName() string {
+	return "interviews"
+}
+
+type InterviewTurnModel struct {
+	ID          string    `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	InterviewID string    `gorm:"column:interview_id"`
+	TurnID      string    `gorm:"column:turn_id"`
+	Stage       string    `gorm:"column:stage"`
+	Question    string    `gorm:"column:question"`
+	UserAnswer  string    `gorm:"column:user_answer"`
+	ASRRaw      string    `gorm:"column:asr_raw"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+}
+
+func (InterviewTurnModel) TableName() string {
+	return "interview_turns"
+}
+
+func (m InterviewTurnModel) toDomain() domain.InterviewTurn {
+	return domain.InterviewTurn{
+		ID:          m.ID,
+		InterviewID: m.InterviewID,
+		TurnID:      m.TurnID,
+		Stage:       m.Stage,
+		Question:    m.Question,
+		UserAnswer:  m.UserAnswer,
+		ASRRaw:      m.ASRRaw,
+		CreatedAt:   m.CreatedAt,
+	}
+}
+
+type QuestionnaireResultModel struct {
+	ID          string     `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	InterviewID string     `gorm:"column:interview_id"`
+	TurnID      string     `gorm:"column:turn_id"`
+	Quality     string     `gorm:"column:quality"`
+	Feedback    string     `gorm:"column:feedback"`
+	UserID      string     `gorm:"column:user_id"`
+	CreatedAt   time.Time  `gorm:"column:created_at"`
+	UpdatedAt   time.Time  `gorm:"column:updated_at"`
+	ExportedAt  *time.Time `gorm:"column:exported_at"`
+}
+
+func (QuestionnaireResultModel) TableName() string {
+	return "questionnaire_results"
+}
+
+func (m QuestionnaireResultModel) toDomain() domain.QuestionnaireResult {
+	return domain.QuestionnaireResult{
+		ID:          m.ID,
+		InterviewID: m.InterviewID,
+		TurnID:      m.TurnID,
+		Quality:     domain.QuestionnaireQuality(m.Quality),
+		Feedback:    m.Feedback,
+		UserID:      m.UserID,
+		CreatedAt:   m.CreatedAt,
+	}
+}
+
+func newResumeModel(userID, hash, s3Key string, resume *domain.StructuredResume) (*ResumeModel, error) {
+	data, err := json.Marshal(resume)
+	if err != nil {
+		return nil, fmt.Errorf("marshal resume: %w", err)
+	}
+	return &ResumeModel{
+		UserID:      userID,
+		ContentHash: hash,
+		S3Key:       s3Key,
+		ParsedData:  datatypes.JSON(data),
+	}, nil
+}
+
+func (m ResumeModel) toDomain() (*domain.StructuredResume, error) {
+	var resume domain.StructuredResume
+	if err := json.Unmarshal(m.ParsedData, &resume); err != nil {
+		return nil, fmt.Errorf("unmarshal resume: %w", err)
+	}
+	return &resume, nil
+}
+
+func newBankQuestionModel(q *domain.BankQuestionRecord) (*BankQuestionModel, error) {
+	tagsJSON, err := json.Marshal(q.Tags)
+	if err != nil {
+		return nil, fmt.Errorf("marshal tags: %w", err)
+	}
+	conceptsJSON, err := json.Marshal(q.RelatedConcepts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal related_concepts: %w", err)
+	}
+	followupJSON, err := json.Marshal(q.FollowupQuestionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal followup_question_ids: %w", err)
+	}
+	return &BankQuestionModel{
+		Question:            q.Question,
+		StandardAnswer:      q.StandardAnswer,
+		Tags:                datatypes.JSON(tagsJSON),
+		RelatedConcepts:     datatypes.JSON(conceptsJSON),
+		FollowupQuestionIDs: datatypes.JSON(followupJSON),
+		Difficulty:          string(q.Difficulty),
+	}, nil
+}
+
+func (m BankQuestionModel) toDomain() (*domain.BankQuestionRecord, error) {
+	rec := &domain.BankQuestionRecord{
+		ID:             m.ID,
+		Question:       m.Question,
+		StandardAnswer: m.StandardAnswer,
+		Difficulty:     domain.Difficulty(m.Difficulty),
+		VecStatus:      domain.VecStatus(m.VecStatus),
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+	}
+	if err := json.Unmarshal(m.Tags, &rec.Tags); err != nil {
+		return nil, fmt.Errorf("unmarshal tags: %w", err)
+	}
+	if err := json.Unmarshal(m.RelatedConcepts, &rec.RelatedConcepts); err != nil {
+		return nil, fmt.Errorf("unmarshal related_concepts: %w", err)
+	}
+	if err := json.Unmarshal(m.FollowupQuestionIDs, &rec.FollowupQuestionIDs); err != nil {
+		return nil, fmt.Errorf("unmarshal followup_question_ids: %w", err)
+	}
+	return rec, nil
+}
+
+func bankQuestionModelsToDomain(rows []BankQuestionModel) ([]*domain.BankQuestionRecord, error) {
+	records := make([]*domain.BankQuestionRecord, 0, len(rows))
+	for _, row := range rows {
+		rec, err := row.toDomain()
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, rec)
+	}
+	return records, nil
+}
+
+type ReportModel struct {
+	ID             string         `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey"`
+	InterviewID    string         `gorm:"column:interview_id"`
+	KnowledgeDepth int            `gorm:"column:knowledge_depth"`
+	Expression     int            `gorm:"column:expression"`
+	ProblemSolving int            `gorm:"column:problem_solving"`
+	CodeQuality    int            `gorm:"column:code_quality"`
+	StressResponse int            `gorm:"column:stress_response"`
+	Summary        string         `gorm:"column:summary"`
+	WeakPoints     datatypes.JSON `gorm:"column:weak_points;type:jsonb"`
+	StrongPoints   datatypes.JSON `gorm:"column:strong_points;type:jsonb"`
+	ErrorMessage   string         `gorm:"column:error_message"`
+	CreatedAt      time.Time      `gorm:"column:created_at"`
+}
+
+func (ReportModel) TableName() string {
+	return "reports"
+}
+
+func (m ReportModel) toDomain() (*domain.Report, error) {
+	r := &domain.Report{
+		ID:             m.ID,
+		InterviewID:    m.InterviewID,
+		KnowledgeDepth: m.KnowledgeDepth,
+		Expression:     m.Expression,
+		ProblemSolving: m.ProblemSolving,
+		CodeQuality:    m.CodeQuality,
+		StressResponse: m.StressResponse,
+		Summary:        m.Summary,
+		ErrorMessage:   m.ErrorMessage,
+		CreatedAt:      m.CreatedAt,
+	}
+	if len(m.WeakPoints) > 0 {
+		if err := json.Unmarshal(m.WeakPoints, &r.WeakPoints); err != nil {
+			return nil, fmt.Errorf("unmarshal weak_points: %w", err)
+		}
+	}
+	if len(m.StrongPoints) > 0 {
+		if err := json.Unmarshal(m.StrongPoints, &r.StrongPoints); err != nil {
+			return nil, fmt.Errorf("unmarshal strong_points: %w", err)
+		}
+	}
+	return r, nil
+}

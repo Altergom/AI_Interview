@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
+
 	"ai_interview/internal/config"
 	"ai_interview/internal/domain"
 	"ai_interview/internal/einocore/agent"
@@ -40,11 +43,43 @@ func skipIfNoAPIKey(t *testing.T) {
 
 func newTestGraph(t *testing.T) *InterviewGraph {
 	t.Helper()
-	supervisor, err := agent.NewSupervisor()
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() {
+		_ = rdb.Close()
+	})
+
+	stageAgents, err := agent.NewStageAgents(context.Background(), agent.StageAgentsConfig{
+		SelectorCfg: agent.SelectorConfig{
+			SkillsDir:   "internal/einocore/skills",
+			RedisClient: rdb,
+		},
+	})
 	if err != nil {
-		t.Fatalf("NewSupervisor failed: %v", err)
+		t.Fatalf("NewStageAgents failed: %v", err)
 	}
-	graph, err := NewInterviewGraph(context.Background(), supervisor)
+	graph, err := NewInterviewGraph(context.Background(), InterviewGraphConfig{
+		IntroAgent: &ADKStageAgent{
+			Stage:  domain.StageIntro,
+			Prompt: GetSystemPromptForStage(domain.StageIntro),
+			Agent:  stageAgents.Intro,
+		},
+		QuestioningAgent: &ADKStageAgent{
+			Stage:  domain.StageQuestioning,
+			Prompt: GetSystemPromptForStage(domain.StageQuestioning),
+			Agent:  stageAgents.Questioning,
+		},
+		AlgorithmAgent: &ADKStageAgent{
+			Stage:  domain.StageAlgorithm,
+			Prompt: GetSystemPromptForStage(domain.StageAlgorithm),
+			Agent:  stageAgents.Algorithm,
+		},
+		ClosingAgent: &ADKStageAgent{
+			Stage:  domain.StageClosing,
+			Prompt: GetSystemPromptForStage(domain.StageClosing),
+			Agent:  stageAgents.Closing,
+		},
+	})
 	if err != nil {
 		t.Fatalf("NewInterviewGraph failed: %v", err)
 	}

@@ -159,9 +159,19 @@ func parseFromEnv() (*Config, error) {
 		return nil, err
 	}
 
+	workflowEnabled, err := getBool("WORKFLOW_ENABLED", true)
+	if err != nil {
+		return nil, err
+	}
+
 	logFormat := strings.ToLower(strings.TrimSpace(get("LOG_FORMAT", "text")))
 	if logFormat != "json" && logFormat != "text" {
 		logFormat = "text"
+	}
+
+	milvusTLS, err := getBool("MILVUS_ENABLE_TLS", false)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Config{
@@ -223,6 +233,8 @@ func parseFromEnv() (*Config, error) {
 
 		MilvusAddr:       get("MILVUS_ADDR", "127.0.0.1:19530"),
 		MilvusCollection: get("MILVUS_COLLECTION", "bank_questions_vec"),
+		MilvusAPIKey:     get("MILVUS_API_KEY", ""),
+		MilvusEnableTLS:  milvusTLS,
 
 		ESAddrs:    splitComma(get("ES_ADDRS", "http://127.0.0.1:9200")),
 		ESUsername: get("ES_USERNAME", ""),
@@ -235,6 +247,7 @@ func parseFromEnv() (*Config, error) {
 
 		ResumeRedisTTL:    resumeTTL,
 		InterviewStateTTL: interviewTTL,
+		WorkflowEnabled:   workflowEnabled,
 		SkillsDir:         get("SKILLS_DIR", "internal/einocore/skills"),
 	}, nil
 }

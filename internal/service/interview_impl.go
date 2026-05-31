@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -10,7 +11,11 @@ import (
 	"ai_interview/internal/domain"
 	"ai_interview/internal/einocore/compose"
 	"ai_interview/internal/log"
+	"ai_interview/internal/mq/mqclient"
+	"ai_interview/internal/mq"
+	"ai_interview/internal/storage/postgres"
 	redisstorage "ai_interview/internal/storage/redis"
+	"ai_interview/internal/storage/s3"
 )
 
 // interviewServiceImpl InterviewService 的实现
@@ -18,20 +23,33 @@ type interviewServiceImpl struct {
 	sessionManager *SessionManager
 	graph          *compose.InterviewGraph
 	redisCli       *redisstorage.Client
+	turnRepo       postgres.InterviewTurnRepository
+	s3Client       *s3.Client
+	mqClient       *mqclient.Client
+	mqTopic        string
 	stateTTL       time.Duration
 }
 
 // NewInterviewService 创建 InterviewService 实例，所有依赖从外部注入。
+// turnRepo / s3Client / mqClient 允许 nil（测试 / 灰度场景），nil 时跳过对应功能。
 func NewInterviewService(
 	sessionManager *SessionManager,
 	graph *compose.InterviewGraph,
 	redisCli *redisstorage.Client,
+	turnRepo postgres.InterviewTurnRepository,
+	s3Client *s3.Client,
+	mqClient *mqclient.Client,
+	mqTopic string,
 	stateTTL time.Duration,
 ) InterviewService {
 	return &interviewServiceImpl{
 		sessionManager: sessionManager,
 		graph:          graph,
 		redisCli:       redisCli,
+		turnRepo:       turnRepo,
+		s3Client:       s3Client,
+		mqClient:       mqClient,
+		mqTopic:        mqTopic,
 		stateTTL:       stateTTL,
 	}
 }
@@ -114,6 +132,22 @@ func (s *interviewServiceImpl) ProcessAudio(ctx context.Context, req AudioReques
 		graphContext["interview_id"] = req.InterviewID
 	}
 
+	// 异步上传音频到 S3，失败不阻塞面试流程
+	if s.s3Client != nil && len(req.AudioData) > 0 {
+		audioData := make([]byte, len(req.AudioData))
+		copy(audioData, req.AudioData)
+		go func() {
+			if err := s.s3Client.UploadAudio(context.Background(), req.InterviewID, req.TurnID, bytes.NewReader(audioData)); err != nil {
+				log.Warnf("[InterviewService] upload audio failed interview_id=%s turn_id=%s: %v", req.InterviewID, req.TurnID, err)
+			}
+		}()
+	}
+
+	// 在调用 graph 前抓取「上一句 AI 提问」——也就是用户本轮在回答的问题。
+	// 必须在 UpdateFromGraphOutput 之前读取，否则 history 会被本轮新消息污染。
+	priorQuestion := lastAssistantMessage(session.History)
+	priorTotalRounds := session.Stats.TotalRounds
+
 	output, err := s.graph.Invoke(ctx, compose.GraphInput{
 		AudioData:   req.AudioData,
 		Text:        "",
@@ -137,13 +171,18 @@ func (s *interviewServiceImpl) ProcessAudio(ctx context.Context, req AudioReques
 		return fmt.Errorf("[interview] update session: %w", err)
 	}
 
-	// 更新 InterviewState 阶段
+	// GraphOutput.NewStage 是状态机裁决后的结果，需要同步到 Redis InterviewState。
 	if state != nil && output.NewStage != "" && output.NewStage != state.Stage {
 		state.Stage = output.NewStage
 		if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
 			log.Warnf("[InterviewService] save state after stage change interview_id=%s: %v", req.InterviewID, err)
 		}
 	}
+
+	// 落 turn 到 PG（SFT 数据采集起点，失败不阻塞面试流程）
+	s.recordTurn(ctx, req.InterviewID, priorTotalRounds+1,
+		effectiveStage(output.NewStage, session.Stage),
+		priorQuestion, userInput, userInput)
 
 	return nil
 }
@@ -157,21 +196,28 @@ func (s *interviewServiceImpl) Finish(ctx context.Context, interviewID string) (
 
 	duration := time.Since(session.CreatedAt)
 
-	if err := s.sessionManager.UpdateStage(ctx, interviewID, domain.StageClosing); err != nil {
+	// 手动结束和 workflow 的 closing + finish 保持一致，都落到显式终态 StageEnd。
+	if err := s.sessionManager.UpdateStage(ctx, interviewID, domain.StageEnd); err != nil {
 		return nil, fmt.Errorf("[interview] update stage: %w", err)
 	}
 
-	// 更新 state 的 ReportStatus
+	// Redis state 也必须进入 StageEnd，否则前端和后续报告流程会看到不一致状态。
 	state, err := s.redisCli.GetInterviewState(ctx, interviewID)
 	if err == nil && state != nil {
-		state.Stage = domain.StageClosing
+		state.Stage = domain.StageEnd
 		state.ReportStatus = "pending"
 		if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
 			log.Warnf("[InterviewService] save state on finish interview_id=%s: %v", interviewID, err)
 		}
 	}
 
-	// TODO: 发布 interview_finished 事件到 MQ
+	// 发布 interview_finished 事件到 MQ
+	if s.mqClient != nil {
+		event := mq.NewInterviewFinishedEvent(interviewID, session.UserID, time.Now())
+		if err := s.mqClient.Publish(ctx, s.mqTopic, event); err != nil {
+			log.Errorf("[InterviewService] publish interview_finished interview_id=%s: %v", interviewID, err)
+		}
+	}
 
 	return &InterviewFinishResult{
 		InterviewID:     interviewID,
@@ -220,6 +266,9 @@ func (s *interviewServiceImpl) SubmitCode(ctx context.Context, req CodeSubmitReq
 		return fmt.Errorf("[interview] get graph context: %w", err)
 	}
 
+	priorQuestion := lastAssistantMessage(session.History)
+	priorTotalRounds := session.Stats.TotalRounds
+
 	codeSubmitText := fmt.Sprintf("我提交了代码：\n```%s\n%s\n```", req.Language, req.Code)
 	output, err := s.graph.Invoke(ctx, compose.GraphInput{
 		Text:        codeSubmitText,
@@ -246,5 +295,65 @@ func (s *interviewServiceImpl) SubmitCode(ctx context.Context, req CodeSubmitReq
 		return fmt.Errorf("[interview] increment algorithm count: %w", err)
 	}
 
+	// 代码提交也可能触发 algorithm -> closing，需要和音频流程一样同步 Redis state。
+	if output.NewStage != "" && output.NewStage != session.Stage {
+		state, err := s.redisCli.GetInterviewState(ctx, req.InterviewID)
+		if err == nil && state != nil {
+			state.Stage = output.NewStage
+			if err := s.redisCli.SaveInterviewState(ctx, state, s.stateTTL); err != nil {
+				log.Warnf("[InterviewService] save state after code stage change interview_id=%s: %v", req.InterviewID, err)
+			}
+		}
+	}
+
+	// 代码提交也算一个 turn，asr_raw 保持为空（非语音输入）
+	s.recordTurn(ctx, req.InterviewID, priorTotalRounds+1,
+		effectiveStage(output.NewStage, session.Stage),
+		priorQuestion, codeSubmitText, "")
+
 	return nil
+}
+
+// recordTurn 异步语义的落库点：失败只记 warn，不影响面试主流程。
+// turnNumber 从 1 起，VARCHAR(10) 上限远超任意单场面试规模。
+func (s *interviewServiceImpl) recordTurn(
+	ctx context.Context,
+	interviewID string,
+	turnNumber int,
+	stage domain.InterviewStage,
+	question, userAnswer, asrRaw string,
+) {
+	if s.turnRepo == nil {
+		return
+	}
+	turn := domain.InterviewTurn{
+		InterviewID: interviewID,
+		TurnID:      fmt.Sprintf("T%02d", turnNumber),
+		Stage:       string(stage),
+		Question:    question,
+		UserAnswer:  userAnswer,
+		ASRRaw:      asrRaw,
+	}
+	if err := s.turnRepo.SaveTurn(ctx, turn); err != nil {
+		log.Warnf("[InterviewService] save turn failed interview_id=%s turn_id=%s: %v",
+			interviewID, turn.TurnID, err)
+	}
+}
+
+// lastAssistantMessage 返回 history 中最后一条 assistant 消息内容；找不到返回 ""。
+func lastAssistantMessage(history []domain.SessionMessage) string {
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].Role == "assistant" {
+			return history[i].Content
+		}
+	}
+	return ""
+}
+
+// effectiveStage 选取本轮 turn 实际所处阶段：优先 graph 新阶段，否则保留旧值。
+func effectiveStage(newStage, fallback domain.InterviewStage) domain.InterviewStage {
+	if newStage != "" {
+		return newStage
+	}
+	return fallback
 }

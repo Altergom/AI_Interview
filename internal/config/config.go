@@ -74,7 +74,9 @@ type Config struct {
 	// Milvus 向量数据库
 	MilvusAddr       string // host:port，默认 127.0.0.1:19530
 	MilvusCollection string // 题库向量集合名，默认 bank_questions_vec
-
+	MilvusAPIKey     string //
+	MilvusEnableTLS  bool   // Zilliz Cloud 必须 true
+	
 	// Elasticsearch
 	ESAddrs    []string // 节点地址列表，逗号分隔
 	ESUsername string
@@ -89,6 +91,11 @@ type Config struct {
 	// TTL：可由 RESUME_REDIS_TTL、INTERVIEW_STATE_TTL 等 duration 字符串覆盖
 	ResumeRedisTTL    time.Duration
 	InterviewStateTTL time.Duration
+
+	// 面试流程驱动模式
+	// WorkflowEnabled=true 使用显式 workflow（StageRouter + 状态机裁决）；
+	// WorkflowEnabled=false 使用 Agent Supervisor 驱动模式。
+	WorkflowEnabled bool
 
 	// Skill 出题模块
 	// SkillsDir SKILL.md 所在父目录的绝对路径，默认 "internal/einocore/skills"（相对项目根）

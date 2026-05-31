@@ -25,6 +25,10 @@ export interface ResumeInternship {
 // 结构化简历
 export interface StructuredResume {
   user_id: string;
+  // 手动填表场景使用；PDF 解析路径目前不填充
+  name?: string;
+  phone?: string;
+  email?: string;
   skills: string[];
   projects: ResumeProject[];
   internships: ResumeInternship[];
@@ -34,6 +38,9 @@ export interface StructuredResume {
 // 简历提交请求（表单方式）
 export interface ResumeSubmitRequest {
   user_id: string;
+  name?: string;
+  phone?: string;
+  email?: string;
   skills: string[];
   projects: ResumeProject[];
   internships: ResumeInternship[];
