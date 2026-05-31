@@ -223,26 +223,26 @@
 > 从 day 1 抽象统一管道，避免后期重构。v1 只实现语音输入分支。
 
 - [x] 定义 `Report` / `ReportDimensions` 领域类型
-- [ ] 定义 `EvaluationPipeline` 接口（`internal/einocore/evaluation/pipeline.go`）
-- [ ] 定义 `Turn` 输入结构（同时支持 `text` + `audio_transcript`）
-- [ ] 实现 `BatchScore`：分批评估（每批 8 turn），降低单次 LLM 上下文压力
-- [ ] 实现 `Aggregate` 骨架：跨批分数加权（v1 简单平均，v2 增强）
-- [ ] 实现 `Fallback`：LLM 失败返回保底报告（基于规则给中等分数 + 错误说明）
-- [ ] 所有 JSON 输出必须经 `StructuredOutputInvoker`
-- [ ] v1 实现语音输入分支（文字分支留接口给 v2）
+- [x] 定义 `EvaluationPipeline` 接口（`internal/einocore/evaluation/pipeline.go`）
+- [x] 定义 `Turn` 输入结构（同时支持 `text` + `audio_transcript`）
+- [x] 实现 `BatchScore`：分批评估（每批 8 turn），降低单次 LLM 上下文压力
+- [x] 实现 `Aggregate` 骨架：跨批分数加权（v1 简单平均，v2 增强）
+- [x] 实现 `Fallback`：LLM 失败返回保底报告（基于规则给中等分数 + 错误说明）
+- [x] 所有 JSON 输出必须经 `StructuredOutputInvoker`
+- [x] v1 实现语音输入分支（文字分支留接口给 v2）
 
 ---
 
 ## Report Worker（基础版）
 
 - [x] `mq.InterviewFinished` 事件定义
-- [ ] RabbitMQ Producer：面试结束发布消息
-- [ ] Worker Consumer：消费 → 拉对话记录 → 调评估管道 → 写 PG
-- [ ] 任务状态机：`pending → processing → completed / failed`
-- [ ] 失败重试 3 次（v1 失败直接 DB 标 failed，**死信队列推 v2**）
+- [x] RabbitMQ Producer：面试结束发布消息
+- [x] Worker Consumer：消费 → 拉对话记录 → 调评估管道 → 写 PG
+- [x] 任务状态机：`pending → processing → completed / failed`
+- [x] 失败重试 3 次（v1 失败直接 DB 标 failed，**死信队列推 v2**）
 - [ ] 报告生成完成后通过 WebSocket 推送通知前端
-- [ ] Record Service：`SaveTurn` / `GetInterviewRecord`
-- [ ] 音频文件上传 S3：`/audio/{interview_id}/{turn_id}.wav`
+- [x] Record Service：`SaveTurn` / `GetInterviewRecord`
+- [x] 音频文件上传 S3：`/audio/{interview_id}/{turn_id}.wav`
 
 ---
 
@@ -252,11 +252,11 @@
 
 - [x] 定义问卷标注与 SFT/JSONL 行结构（`QuestionnaireResult`、`SFTMessage`）
 - [x] `questionnaire_results` 表 schema
-- [ ] 提交 API `POST /v1/questionnaire/submit`
-- [ ] 接收逐轮标注（quality: good/bad + feedback 文字）
-- [ ] **采集策略：good/bad 都采集**（DPO 负样本备用）
-- [ ] **数据形态：多轮 conversation**（保存到 PG，定期导出在 v2）
-- [ ] 前端问卷页：逐轮展示 ASR 文本 + 打标 good/bad + 反馈输入
+- [x] 提交 API `POST /v1/questionnaire/submit`
+- [x] 接收逐轮标注（quality: good/bad + feedback 文字）
+- [x] **采集策略：good/bad 都采集**（DPO 负样本备用）
+- [x] **数据形态：多轮 conversation**（保存到 PG，定期导出在 v2）
+- [x] 前端问卷页：逐轮展示 ASR 文本 + 打标 good/bad + 反馈输入
 
 ---
 

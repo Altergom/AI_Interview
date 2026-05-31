@@ -26,6 +26,12 @@ func (s *stubTurnRepo) SaveTurn(_ context.Context, t domain.InterviewTurn) error
 	return nil
 }
 
+func (s *stubTurnRepo) ListByInterview(_ context.Context, _ string) ([]domain.InterviewTurn, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saved, nil
+}
+
 func TestLastAssistantMessage(t *testing.T) {
 	cases := []struct {
 		name string

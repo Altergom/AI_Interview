@@ -14,6 +14,7 @@ type Report struct {
 	Summary        string    `json:"summary"`
 	WeakPoints     []string  `json:"weak_points"`
 	StrongPoints   []string  `json:"strong_points"`
+	ErrorMessage   string    `json:"error_message,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
