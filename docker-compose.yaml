@@ -213,6 +213,36 @@ services:
     networks:
       - ai-interview-net
 
+  # ─────────────────────────────────────────
+  # 知识库采集器（按需运行，非常驻服务）
+  # 用法：
+  #   docker compose --profile collector build collector
+  #   docker compose --profile collector run --rm collector --dry-run --limit 5
+  #   docker compose --profile collector run --rm collector --limit 10
+  # ─────────────────────────────────────────
+  collector:
+    profiles: ["collector"]
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+    image: ai-interview-collector:latest
+    container_name: ai-interview-collector
+    env_file:
+      - .env
+    environment:
+      # 覆盖为容器内地址
+      POSTGRES_DSN: postgres://aiinterview:aiinterview123@postgres:5432/aiinterview?sslmode=disable
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: aiinterview123
+      MQ_BROKER_URL: amqp://aiinterview:aiinterview123@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ai-interview-net
+
 # ─────────────────────────────────────────
 # Volumes
 # ─────────────────────────────────────────

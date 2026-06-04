@@ -108,3 +108,16 @@ func (r *BankQuestionRepo) ListByTags(ctx context.Context, tags []string, limit 
 	}
 	return bankQuestionModelsToDomain(rows)
 }
+
+// ExistsByQuestion 检查已存在相同题目的记录，用于跨运行去重。
+func (r *BankQuestionRepo) ExistsByQuestion(ctx context.Context, question string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&BankQuestionModel{}).
+		Where("question = ?", question).
+		Count(&count).Error
+	if err != nil {
+		return false, fmt.Errorf("[BankQuestionRepo] exists by question: %w", err)
+	}
+	return count > 0, nil
+}
