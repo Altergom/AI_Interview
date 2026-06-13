@@ -1,10 +1,7 @@
 // Package llm 提供统一的 LLM provider 注册与 ChatModel 创建接口。
 //
-// v1 设计：编译期静态配置，从 .env 读取各 provider 的 APIKey / BaseURL；
-// 不做运行时热切换，不做 provider 路由复杂逻辑。
-// 使用方式：
-//
-//	model, err := llm.Registry.NewChatModel(ctx, llm.RoleSupervisor)
+// v2 设计：通过模型名前缀自动匹配 provider，无需显式配置 provider 名。
+// 配置只需设置各 provider 的 APIKey/BaseURL 和每角色的模型名。
 package llm
 
 import (
@@ -12,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cloudwego/eino-ext/components/model/claude"
+	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino-ext/components/model/qwen"
 	einomodel "github.com/cloudwego/eino/components/model"
 
@@ -27,8 +26,8 @@ const (
 	ProviderOpenAI   Provider = "openai"
 	ProviderDoubao   Provider = "doubao"
 	ProviderDeepSeek Provider = "deepseek"
-	ProviderClaude   Provider = "claude" // 通过 openai 兼容模式接入
-	ProviderGemini   Provider = "gemini" // 通过 openai 兼容模式接入
+	ProviderClaude   Provider = "claude"
+	ProviderGemini   Provider = "gemini"
 )
 
 // AgentRole 标识调用方是哪个 Agent，Registry 据此从配置中选模型名。
@@ -48,15 +47,38 @@ type providerCfg struct {
 	BaseURL string
 }
 
+// modelProviderMapping 定义模型名前缀到 provider 的映射。
+type modelProviderMapping struct {
+	prefix   string
+	provider Provider
+}
+
+var modelPrefixes = []modelProviderMapping{
+	{"qwen", ProviderQwen},
+	{"gpt", ProviderOpenAI},
+	{"o1", ProviderOpenAI},
+	{"o3", ProviderOpenAI},
+	{"o4", ProviderOpenAI},
+	{"deepseek", ProviderDeepSeek},
+	{"doubao", ProviderDoubao},
+	{"claude", ProviderClaude},
+	{"gemini", ProviderGemini},
+}
+
+// resolveProvider 根据模型名匹配 provider。匹配失败时回退到 Qwen。
+func resolveProvider(modelName string) Provider {
+	lower := strings.ToLower(modelName)
+	for _, m := range modelPrefixes {
+		if strings.HasPrefix(lower, m.prefix) {
+			return m.provider
+		}
+	}
+	return ProviderQwen
+}
+
 // ProviderRegistry 持有各 provider 配置，提供统一的 ChatModel 构造方法。
-//
-// v1 限制：
-//   - 只支持 Qwen（其余 provider 配置加载但暂不路由）
-//   - 所有 Agent 的 provider 均为 qwen，通过 AgentRole 区分模型名
-//   - v2 可扩展为按 role 指定不同 provider
 type ProviderRegistry struct {
 	providers map[Provider]providerCfg
-	// roleModel 从 role 映射到模型名，v1 全走 qwen
 	roleModel map[AgentRole]string
 }
 
@@ -64,7 +86,6 @@ type ProviderRegistry struct {
 var Registry *ProviderRegistry
 
 // Init 从 config.Cfg 加载各 provider 配置，构建 Registry 单例。
-// 必须在 config.Load() 之后调用。
 func Init(cfg *config.Config) {
 	providers := map[Provider]providerCfg{
 		ProviderQwen: {
@@ -106,7 +127,6 @@ func Init(cfg *config.Config) {
 		roleModel: roleModel,
 	}
 
-	// 启动时打印已配置的 provider，便于排查
 	var configured []string
 	for p, c := range providers {
 		if c.APIKey != "" {
@@ -118,8 +138,15 @@ func Init(cfg *config.Config) {
 
 // NewChatModel 根据 AgentRole 创建对应的 ChatModel。
 //
-// v1：所有 role 均使用 Qwen provider；模型名从 config 读取（SUPERVISOR / SELECTOR 等环境变量）。
-// 若 Qwen APIKey 未配置，返回错误，启动即失败，避免运行时 panic。
+// 模型名前缀自动匹配 provider：
+//   - qwen-* → Qwen
+//   - gpt-*/o1/o3/o4 → OpenAI
+//   - deepseek-* → DeepSeek
+//   - doubao-* → Doubao
+//   - claude-* → Claude
+//   - gemini-* → Gemini
+//
+// 未匹配时回退到 Qwen。
 func (r *ProviderRegistry) NewChatModel(ctx context.Context, role AgentRole) (einomodel.ChatModel, error) {
 	modelName, ok := r.roleModel[role]
 	if !ok {
@@ -129,8 +156,7 @@ func (r *ProviderRegistry) NewChatModel(ctx context.Context, role AgentRole) (ei
 		return nil, fmt.Errorf("[LLM] model name for role %q is empty", role)
 	}
 
-	// v1 固定走 Qwen
-	return r.newQwenModel(ctx, modelName)
+	return r.NewChatModelWithProvider(ctx, resolveProvider(modelName), modelName)
 }
 
 // newQwenModel 创建 Qwen ChatModel。
@@ -151,14 +177,55 @@ func (r *ProviderRegistry) newQwenModel(ctx context.Context, modelName string) (
 	return model, nil
 }
 
+// newOpenAICompatModel 为 OpenAI 兼容 provider 创建 ChatModel。
+// 适用于 OpenAI、DeepSeek、Doubao、Gemini。
+func (r *ProviderRegistry) newOpenAICompatModel(ctx context.Context, provider Provider, modelName string) (einomodel.ChatModel, error) {
+	cfg, ok := r.providers[provider]
+	if !ok || cfg.APIKey == "" {
+		return nil, fmt.Errorf("[LLM] %s provider not configured: %s_API_KEY is empty", provider, strings.ToUpper(string(provider)))
+	}
+
+	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
+		APIKey:  cfg.APIKey,
+		BaseURL: cfg.BaseURL,
+		Model:   modelName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("[LLM] new %s chat model %q: %w", provider, modelName, err)
+	}
+	return model, nil
+}
+
+// newClaudeModel 为 Anthropic Claude 创建 ChatModel。
+func (r *ProviderRegistry) newClaudeModel(ctx context.Context, modelName string) (einomodel.ChatModel, error) {
+	cfg, ok := r.providers[ProviderClaude]
+	if !ok || cfg.APIKey == "" {
+		return nil, fmt.Errorf("[LLM] claude provider not configured: CLAUDE_API_KEY is empty")
+	}
+
+	baseURL := cfg.BaseURL
+	model, err := claude.NewChatModel(ctx, &claude.Config{
+		APIKey:    cfg.APIKey,
+		BaseURL:   &baseURL,
+		Model:     modelName,
+		MaxTokens: 4096,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("[LLM] new claude chat model %q: %w", modelName, err)
+	}
+	return model, nil
+}
+
 // NewChatModelWithProvider 显式指定 provider 和模型名创建 ChatModel。
-// 适用于需要跨 provider 调用的场景（如 embedding 用 qwen、eval 用 deepseek）。
-// v1 只实现 Qwen，其余 provider 返回 ErrNotImplemented。
 func (r *ProviderRegistry) NewChatModelWithProvider(ctx context.Context, provider Provider, modelName string) (einomodel.ChatModel, error) {
 	switch provider {
 	case ProviderQwen:
 		return r.newQwenModel(ctx, modelName)
+	case ProviderClaude:
+		return r.newClaudeModel(ctx, modelName)
+	case ProviderOpenAI, ProviderDeepSeek, ProviderDoubao, ProviderGemini:
+		return r.newOpenAICompatModel(ctx, provider, modelName)
 	default:
-		return nil, fmt.Errorf("[LLM] provider %q not implemented in v1; only qwen is supported", provider)
+		return nil, fmt.Errorf("[LLM] unsupported provider %q", provider)
 	}
 }
