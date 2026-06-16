@@ -97,6 +97,11 @@ type Config struct {
 	// WorkflowEnabled=false 使用 Agent Supervisor 驱动模式。
 	WorkflowEnabled bool
 
+	// RAGEnabled 控制是否初始化向量检索基础设施（Milvus + Elasticsearch）。
+	// 默认 false：出题走 LLM wiki（Skill middleware 读本地 SKILL.md），无需启动 Milvus/ES，启动更轻量。
+	// 设为 true 时才连接 Milvus 与 ES（题库向量/关键词检索）。
+	RAGEnabled bool
+
 	// Skill 出题模块
 	// SkillsDir SKILL.md 所在父目录的绝对路径，默认 "internal/einocore/skills"（相对项目根）
 	SkillsDir string

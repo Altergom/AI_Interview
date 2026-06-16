@@ -164,6 +164,11 @@ func parseFromEnv() (*Config, error) {
 		return nil, err
 	}
 
+	ragEnabled, err := getBool("RAG_ENABLED", false)
+	if err != nil {
+		return nil, err
+	}
+
 	logFormat := strings.ToLower(strings.TrimSpace(get("LOG_FORMAT", "text")))
 	if logFormat != "json" && logFormat != "text" {
 		logFormat = "text"
@@ -248,6 +253,7 @@ func parseFromEnv() (*Config, error) {
 		ResumeRedisTTL:    resumeTTL,
 		InterviewStateTTL: interviewTTL,
 		WorkflowEnabled:   workflowEnabled,
+		RAGEnabled:        ragEnabled,
 		SkillsDir:         get("SKILLS_DIR", "internal/einocore/skills"),
 	}, nil
 }

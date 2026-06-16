@@ -81,32 +81,38 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("init s3: %w", err)
 	}
 
-	// 4. Milvus（向量数据库）
-	milvusClient, err := milvus.New(ctx, milvus.Options{
-		Addr:          cfg.MilvusAddr,
-		APIKey:        cfg.MilvusAPIKey,
-		EnableTLSAuth: cfg.MilvusEnableTLS,
-		Collection:    cfg.MilvusCollection,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init milvus: %w", err)
-	}
-	if err := milvusClient.EnsureCollection(ctx); err != nil {
-		return nil, fmt.Errorf("milvus ensure collection: %w", err)
-	}
+	// 4. Milvus + Elasticsearch（向量/关键词检索，可选）
+	// RAGEnabled=false 时跳过：出题走 LLM wiki（Skill middleware），无需启动笨重的 Milvus/ES。
+	var milvusClient *milvus.Client
+	var esClient *es.Client
+	if cfg.RAGEnabled {
+		milvusClient, err = milvus.New(ctx, milvus.Options{
+			Addr:          cfg.MilvusAddr,
+			APIKey:        cfg.MilvusAPIKey,
+			EnableTLSAuth: cfg.MilvusEnableTLS,
+			Collection:    cfg.MilvusCollection,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init milvus: %w", err)
+		}
+		if err := milvusClient.EnsureCollection(ctx); err != nil {
+			return nil, fmt.Errorf("milvus ensure collection: %w", err)
+		}
 
-	// 5. Elasticsearch（关键词/标签检索）
-	esClient, err := es.New(ctx, es.Options{
-		Addrs:    cfg.ESAddrs,
-		Username: cfg.ESUsername,
-		Password: cfg.ESPassword,
-		Index:    cfg.ESIndex,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init es: %w", err)
-	}
-	if err := esClient.EnsureIndex(ctx); err != nil {
-		return nil, fmt.Errorf("es ensure index: %w", err)
+		esClient, err = es.New(ctx, es.Options{
+			Addrs:    cfg.ESAddrs,
+			Username: cfg.ESUsername,
+			Password: cfg.ESPassword,
+			Index:    cfg.ESIndex,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("init es: %w", err)
+		}
+		if err := esClient.EnsureIndex(ctx); err != nil {
+			return nil, fmt.Errorf("es ensure index: %w", err)
+		}
+	} else {
+		log.Infof("[App] RAG disabled, skipping Milvus/Elasticsearch init")
 	}
 
 	// 6. Session 管理
@@ -190,7 +196,9 @@ func (a *App) Shutdown() {
 	}
 	a.redis.Close()
 	a.db.Close()
-	a.milvus.Close()
+	if a.milvus != nil {
+		a.milvus.Close()
+	}
 }
 
 // buildInterviewGraph 根据配置选择 workflow 或 agent 驱动模式构建面试 Graph。
