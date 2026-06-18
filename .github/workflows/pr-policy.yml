@@ -1,0 +1,50 @@
+name: PR Base Branch Policy
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  enforce-base:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block non-dev PR targeting main
+        if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref != 'dev'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              state: 'closed'
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `🚫 **PR 已自动关闭**\n\n\`main\` 分支只接受来自 \`dev\` 的 PR。\n\n请将目标分支改为 \`dev\`，或者从 \`dev\` 分支发起 PR 到 \`main\`。`
+            });
+            core.setFailed('PR targeting main must come from dev branch');
+
+      - name: Redirect non-dev PR to target dev
+        if: github.event.pull_request.base.ref != 'main' && github.event.pull_request.base.ref != 'dev'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              base: 'dev'
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `ℹ️ **目标分支已自动调整为 \`dev\`**\n\n功能分支的 PR 默认合并到 \`dev\`，已自动将目标分支从 \`${context.payload.pull_request.base.ref}\` 修改为 \`dev\`。`
+            });
