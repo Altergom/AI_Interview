@@ -10,17 +10,17 @@
 
 ## 基础设施
 
-| 组件 | 版本 | 用途 |
-|------|------|------|
-| Go | 1.25+ | 后端运行时 |
-| Node.js | 18+ | 前端构建 |
-| PostgreSQL | 16+ | 业务数据持久化 |
-| Redis | 7+ | 会话状态、缓存 |
-| MinIO / S3 | — | 简历、音频文件存储 |
-| Milvus | 2.4+ | 题库向量检索 |
-| Elasticsearch | 8.13+ | 题库关键词/标签检索 |
-| RabbitMQ | 3.13+（可选） | 面试完成事件、报告生成 |
-| Ollama | 可选 | 本地 LLM / Embedding |
+| 组件 | 版本 | 用途 | 模式 |
+|------|------|------|------|
+| Go | 1.25+ | 后端运行时 | 必须 |
+| Node.js | 18+ | 前端构建 | 必须 |
+| PostgreSQL | 16+ | 业务数据持久化 | 必须 |
+| Redis | 7+ | 会话状态、缓存 | 必须 |
+| MinIO / S3 | — | 简历、音频文件存储 | 必须 |
+| RabbitMQ | 3.13+ | 面试完成事件、报告生成 | 必须 |
+| Milvus | 2.4+ | 题库向量检索 | RAG 模式 |
+| Elasticsearch | 8.13+ | 题库关键词/标签检索 | RAG 模式 |
+| Ollama | 可选 | 本地 LLM / Embedding | 可选 |
 
 ## LLM 提供商（至少配一个）
 
@@ -46,30 +46,46 @@ React 19 · Vite · TypeScript · Zustand · Monaco Editor · Recharts
 
 # 快速启动
 
-## 1. 拉起基础设施
-
-```bash
-docker-compose up -d
-```
-
-一键启动 PostgreSQL、Redis、MinIO、Milvus、Elasticsearch、RabbitMQ。
-
-## 2. 配置环境变量
+## 1. 配置环境变量
 
 ```bash
 cp .env.example .env
 # 编辑 .env，至少填写一个 LLM 提供商的 API Key
 ```
 
-## 3. 启动后端
+## 2. 启动基础设施
+
+系统提供两种启动模式，按机器配置选择：
+
+### Wiki 模式（推荐，2C2G 可用）
+
+出题由 LLM 直接生成，不依赖向量检索。只启动 Postgres、Redis、MinIO、RabbitMQ。
 
 ```bash
-go run ./cmd
+bash start-wiki.sh
 ```
 
-默认监听 `:8080`，启动时自动执行数据库迁移。
+### RAG 模式（需要 8G+ 内存）
 
-## 4. 启动前端
+启用 Milvus + Elasticsearch 向量/关键词检索题库。首次启动需拉取较大镜像。
+
+```bash
+bash start-rag.sh
+```
+
+> 使用 RAG 模式前需先采集 wiki 知识库：
+> ```bash
+> bash collect-wiki.sh --limit 5   # 先小批量验证
+> bash collect-wiki.sh             # 全量导入
+> ```
+
+### 可选：本地 LLM（Ollama）
+
+```bash
+docker compose --profile ollama up -d ollama
+```
+
+## 3. 启动前端
 
 ```bash
 cd frontend && npm install && npm run dev

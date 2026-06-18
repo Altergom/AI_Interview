@@ -16,10 +16,9 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# collector 非 dry-run 时需要 PG + RabbitMQ（写 bank_questions + 投向量化任务）。
-# 注：向量化任务最终供 RAG 用，RAG 未实现时这些任务会堆在 MQ 里，不影响 wiki 产出（questions + index.md）。
 echo "[collect-wiki] 启动采集所需基础设施（postgres redis minio rabbitmq）..."
-docker compose up -d --wait postgres redis minio minio-init rabbitmq
+docker compose up -d --wait postgres redis minio rabbitmq
+docker compose up -d minio-init
 
 echo "[collect-wiki] 开始采集（首次会 git clone 小林 CS-Base 到 internal/wiki/raw/）..."
 go run ./tools/collector "$@"
