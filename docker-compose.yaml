@@ -108,10 +108,11 @@ services:
       - ai-interview-net
 
   # ─────────────────────────────────────────
-  # Milvus（向量数据库）
+  # Milvus（向量数据库）【rag profile】
   # 依赖：etcd（元数据） + 业务 MinIO（对象存储，milvus bucket）
   # ─────────────────────────────────────────
   etcd:
+    profiles: ["rag"]
     image: quay.io/coreos/etcd:v3.5.14
     container_name: ai-interview-etcd
     restart: unless-stopped
@@ -136,6 +137,7 @@ services:
       - ai-interview-net
 
   milvus:
+    profiles: ["rag"]
     image: milvusdb/milvus:v2.4.17
     container_name: ai-interview-milvus
     restart: unless-stopped
@@ -168,9 +170,10 @@ services:
       - ai-interview-net
 
   # ─────────────────────────────────────────
-  # Elasticsearch（关键词 / 标签检索）
+  # Elasticsearch（关键词 / 标签检索）【rag profile】
   # ─────────────────────────────────────────
   elasticsearch:
+    profiles: ["rag"]
     image: elasticsearch:8.13.4
     container_name: ai-interview-es
     restart: unless-stopped
@@ -191,10 +194,11 @@ services:
       - ai-interview-net
 
   # ─────────────────────────────────────────
-  # Ollama（本地 LLM / embedding，可选）
-  # 不需要本地模型时可注释掉整个服务
+  # Ollama（本地 LLM / embedding）【ollama profile】
+  # 不需要本地模型时可不传 --profile ollama
   # ─────────────────────────────────────────
   ollama:
+    profiles: ["ollama"]
     image: ollama/ollama:latest
     container_name: ai-interview-ollama
     restart: unless-stopped
