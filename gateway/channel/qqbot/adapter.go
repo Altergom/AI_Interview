@@ -2,32 +2,30 @@ package qqbot
 
 import (
 	"context"
+	"fmt"
 
+	"gateway/channel"
 	"gateway/inbound"
 )
 
-// Adapter QQ Bot 渠道适配器骨架。
-type Adapter struct{}
+// Connector QQ Bot 渠道连接器骨架。
+// QQ 官方支持 WebSocket（默认）/ Webhook 双 transport（tencent-connect/openclaw-qqbot），
+// 此处为占位实现，待后续补全。
+type Connector struct{}
 
-func New() *Adapter { return &Adapter{} }
+func New() *Connector { return &Connector{} }
 
-func (a *Adapter) Name() string { return "qqbot" }
+func (c *Connector) Name() string { return "qqbot" }
 
-func (a *Adapter) VerifySignature(_ context.Context, _ map[string]string, _ []byte) error {
-	// TODO: QQ Bot 签名验证
-	return nil
+// Start 尚未实现。QQ 默认建立 WebSocket 长连接接收事件。
+func (c *Connector) Start(_ context.Context, _ chan<- *inbound.InboundEvent) error {
+	return fmt.Errorf("qqbot: connector not implemented")
 }
 
-func (a *Adapter) Parse(_ context.Context, body []byte) (*inbound.InboundEvent, error) {
-	// TODO: 解析 QQ Bot 消息格式
-	return &inbound.InboundEvent{Channel: "qqbot", Raw: body}, nil
+func (c *Connector) Send(_ context.Context, _ string, _ string, _ channel.SendOpts) error {
+	return fmt.Errorf("qqbot: send not implemented")
 }
 
-func (a *Adapter) Ack(_ context.Context, _ []byte) (any, error) {
-	return map[string]any{"ret": 0}, nil
-}
-
-func (a *Adapter) Send(_ context.Context, _ string, _ string) error {
-	// TODO: 调用 QQ Bot 发送消息 API
-	return nil
+func (c *Connector) Status() channel.ConnStatus {
+	return channel.ConnStatus{Connected: false, Detail: "not implemented"}
 }

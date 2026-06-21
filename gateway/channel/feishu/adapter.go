@@ -2,40 +2,30 @@ package feishu
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 
+	"gateway/channel"
 	"gateway/inbound"
 )
 
-// Adapter 飞书渠道适配器骨架。
-type Adapter struct{}
+// Connector 飞书渠道连接器骨架。
+// 飞书官方走 WebSocket 长连接（larksuite/openclaw-lark），此处为占位实现，
+// 待后续按 WSClient 模型补全。
+type Connector struct{}
 
-func New() *Adapter { return &Adapter{} }
+func New() *Connector { return &Connector{} }
 
-func (a *Adapter) Name() string { return "feishu" }
+func (c *Connector) Name() string { return "feishu" }
 
-func (a *Adapter) VerifySignature(_ context.Context, _ map[string]string, _ []byte) error {
-	// TODO: 飞书签名验证（X-Lark-Signature HMAC-SHA256）
-	return nil
+// Start 尚未实现。飞书需建立 WebSocket 长连接订阅 im.message.receive_v1 等事件。
+func (c *Connector) Start(_ context.Context, _ chan<- *inbound.InboundEvent) error {
+	return fmt.Errorf("feishu: connector not implemented")
 }
 
-func (a *Adapter) Parse(_ context.Context, body []byte) (*inbound.InboundEvent, error) {
-	// TODO: 解析飞书事件回调格式
-	return &inbound.InboundEvent{Channel: "feishu", Raw: body}, nil
+func (c *Connector) Send(_ context.Context, _ string, _ string, _ channel.SendOpts) error {
+	return fmt.Errorf("feishu: send not implemented")
 }
 
-func (a *Adapter) Ack(_ context.Context, body []byte) (any, error) {
-	// 飞书 URL 验证时需原样返回 challenge
-	var m map[string]any
-	if err := json.Unmarshal(body, &m); err == nil {
-		if challenge, ok := m["challenge"]; ok {
-			return map[string]any{"challenge": challenge}, nil
-		}
-	}
-	return map[string]any{}, nil
-}
-
-func (a *Adapter) Send(_ context.Context, _ string, _ string) error {
-	// TODO: 调用飞书发送消息 API
-	return nil
+func (c *Connector) Status() channel.ConnStatus {
+	return channel.ConnStatus{Connected: false, Detail: "not implemented"}
 }
