@@ -9,22 +9,22 @@ import (
 
 // Dispatcher 出站分发器，按 channel 把网关动作回写到对应平台。
 type Dispatcher struct {
-	adapters map[string]channel.ChannelAdapter
+	connectors map[string]channel.ChannelConnector
 }
 
-func NewDispatcher(adapters ...channel.ChannelAdapter) *Dispatcher {
-	m := make(map[string]channel.ChannelAdapter, len(adapters))
-	for _, a := range adapters {
-		m[a.Name()] = a
+func NewDispatcher(connectors ...channel.ChannelConnector) *Dispatcher {
+	m := make(map[string]channel.ChannelConnector, len(connectors))
+	for _, c := range connectors {
+		m[c.Name()] = c
 	}
-	return &Dispatcher{adapters: m}
+	return &Dispatcher{connectors: m}
 }
 
 // Send 向指定渠道的用户发送文本消息。
-func (d *Dispatcher) Send(ctx context.Context, ch, peerID, content string) error {
-	adapter, ok := d.adapters[ch]
+func (d *Dispatcher) Send(ctx context.Context, ch, peerID, content string, opts channel.SendOpts) error {
+	conn, ok := d.connectors[ch]
 	if !ok {
 		return fmt.Errorf("unknown channel: %s", ch)
 	}
-	return adapter.Send(ctx, peerID, content)
+	return conn.Send(ctx, peerID, content, opts)
 }
