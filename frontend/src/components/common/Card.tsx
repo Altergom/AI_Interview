@@ -1,9 +1,8 @@
 import React from 'react';
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   title?: string;
-  className?: string;
   padding?: 'none' | 'sm' | 'md' | 'lg';
   onClick?: () => void;
 }
@@ -14,6 +13,7 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   padding = 'md',
   onClick,
+  ...props
 }) => {
   const paddingStyles = {
     none: '',
@@ -39,6 +39,7 @@ export const Card: React.FC<CardProps> = ({
       onKeyDown={handleKeyDown}
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
+      {...props}
     >
       {title && (
         <div className="px-6 py-4 border-b">
