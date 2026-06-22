@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/hertz-contrib/websocket"
 
 	jwtutil "ai_interview/internal/auth"
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/log"
 	authmw "ai_interview/internal/middleware/auth"
 	"ai_interview/internal/middleware/ratelimit"
+	"ai_interview/internal/utils/hertzx"
+	biz "ai_interview/internal/utils/respx"
 )
 
 // wsUpgrader Hertz WebSocket 升级器。
@@ -40,7 +40,7 @@ type wsInterviewHandler struct {
 func (h *wsInterviewHandler) ServeWS(ctx context.Context, c *app.RequestContext) {
 	interviewID := c.Param("interview_id")
 	if interviewID == "" {
-		c.JSON(http.StatusBadRequest, newWSErrResp(biz.CodeBadRequest, "missing interview_id"))
+		c.JSON(http.StatusOK, newWSErrResp(biz.CodeBadRequest))
 		return
 	}
 
@@ -48,14 +48,14 @@ func (h *wsInterviewHandler) ServeWS(ctx context.Context, c *app.RequestContext)
 	token := extractWSToken(c)
 	if token == "" {
 		log.Warnf("[WS] missing token, interview_id=%s", interviewID)
-		c.JSON(http.StatusUnauthorized, newWSErrResp(biz.CodeUnauthorized, biz.CodeUnauthorized.Message()))
+		c.JSON(http.StatusOK, newWSErrResp(biz.CodeUnauthorized))
 		return
 	}
 
 	claims, err := jwtutil.ValidateToken(h.jwtSecret, token)
 	if err != nil {
 		log.Warnf("[WS] invalid token, interview_id=%s: %v", interviewID, err)
-		c.JSON(http.StatusUnauthorized, newWSErrResp(biz.CodeUnauthorized, "invalid or expired token"))
+		c.JSON(http.StatusOK, newWSErrResp(biz.CodeUnauthorized))
 		return
 	}
 
@@ -66,12 +66,12 @@ func (h *wsInterviewHandler) ServeWS(ctx context.Context, c *app.RequestContext)
 	if h.limiter != nil {
 		if !h.limiter.Allow(ctx, "interview.ws", ratelimit.DimensionIP, ip) {
 			log.Infof("[WS] rate limited by ip, ip=%s", ip)
-			c.JSON(http.StatusTooManyRequests, newWSErrResp(biz.CodeRateLimitExceeded, biz.CodeRateLimitExceeded.Message()))
+			c.JSON(http.StatusOK, newWSErrResp(biz.CodeRateLimitExceeded))
 			return
 		}
 		if !h.limiter.Allow(ctx, "interview.ws", ratelimit.DimensionUser, userID) {
 			log.Infof("[WS] rate limited by user, user_id=%s", userID)
-			c.JSON(http.StatusTooManyRequests, newWSErrResp(biz.CodeRateLimitExceeded, biz.CodeRateLimitExceeded.Message()))
+			c.JSON(http.StatusOK, newWSErrResp(biz.CodeRateLimitExceeded))
 			return
 		}
 	}
@@ -242,10 +242,8 @@ func SendTTSAudio(conn *websocket.Conn, pcm []byte) error {
 // extractWSToken 从 WebSocket 握手请求中提取 JWT token。
 // 浏览器原生 WebSocket API 不支持自定义 header，故同时支持 query 参数。
 func extractWSToken(c *app.RequestContext) string {
-	if auth := string(c.GetHeader("Authorization")); strings.HasPrefix(auth, "Bearer ") {
-		if t := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer ")); t != "" {
-			return t
-		}
+	if t := hertzx.BearerToken(c); t != "" {
+		return t
 	}
 	if t := string(c.Query("token")); t != "" {
 		return t
@@ -254,24 +252,11 @@ func extractWSToken(c *app.RequestContext) string {
 }
 
 // newWSErrResp 构造与 handler.Result 格式兼容的错误响应体（握手阶段用，升级前）。
-func newWSErrResp(code biz.ErrorCode, msg string) map[string]any {
-	return map[string]any{
-		"success": false,
-		"data":    nil,
-		"error":   map[string]any{"code": int(code), "message": msg},
-	}
+func newWSErrResp(code biz.ErrorCode) biz.Result {
+	return biz.Fail(code)
 }
 
 // wsClientIP 从 Hertz context 中取客户端 IP。
 func wsClientIP(c *app.RequestContext) string {
-	if xff := string(c.GetHeader("X-Forwarded-For")); xff != "" {
-		if idx := strings.Index(xff, ","); idx > 0 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
-	if xri := string(c.GetHeader("X-Real-IP")); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	return c.ClientIP()
+	return hertzx.ClientIP(c)
 }

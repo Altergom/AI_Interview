@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"ai_interview/internal/domain"
+	"ai_interview/internal/utils/redisx"
 )
 
 // InterviewConfig 面试配置，由 SetConfig 写入。
@@ -118,21 +118,10 @@ func (c *Client) ExpireSession(ctx context.Context, interviewID string, ttl time
 	return c.rdb.Expire(ctx, key, ttl).Err()
 }
 
-// questionHash 计算题目文本的去重 hash（SHA-256 前 16 字节 hex）。
-func questionHash(question string) string {
-	sum := sha256.Sum256([]byte(question))
-	return fmt.Sprintf("%x", sum[:16])
-}
-
 // MarkQuestionAsked 将题目 hash 写入 Redis Set，随 interview 状态 TTL 自动过期。
 func (c *Client) MarkQuestionAsked(ctx context.Context, interviewID, question string, ttl time.Duration) error {
 	key := InterviewAskedQuestionsKey(interviewID)
-	hash := questionHash(question)
-	pipe := c.rdb.Pipeline()
-	pipe.SAdd(ctx, key, hash)
-	pipe.Expire(ctx, key, ttl)
-	_, err := pipe.Exec(ctx)
-	if err != nil {
+	if err := redisx.MarkQuestionAsked(ctx, c.rdb, key, question, ttl); err != nil {
 		return fmt.Errorf("mark asked question: %w", err)
 	}
 	return nil
@@ -141,8 +130,7 @@ func (c *Client) MarkQuestionAsked(ctx context.Context, interviewID, question st
 // IsQuestionAsked 检查题目是否已出过。
 func (c *Client) IsQuestionAsked(ctx context.Context, interviewID, question string) (bool, error) {
 	key := InterviewAskedQuestionsKey(interviewID)
-	hash := questionHash(question)
-	exists, err := c.rdb.SIsMember(ctx, key, hash).Result()
+	exists, err := redisx.IsQuestionAsked(ctx, c.rdb, key, question)
 	if err != nil {
 		return false, fmt.Errorf("check asked question: %w", err)
 	}

@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"ai_interview/internal/domain"
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/storage/postgres"
 	redisstorage "ai_interview/internal/storage/redis"
+	biz "ai_interview/internal/utils/respx"
 )
 
 type reportServiceImpl struct {

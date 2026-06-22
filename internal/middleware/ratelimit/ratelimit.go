@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/redis/go-redis/v9"
 
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/log"
+	"ai_interview/internal/utils/hertzx"
+	biz "ai_interview/internal/utils/respx"
 )
 
 // Dimension 限流维度。
@@ -154,14 +154,7 @@ func Middleware(rdb *redis.Client, handler string, dims ...Dimension) app.Handle
 
 			if !rl.allow(ctx, handler, dim, value) {
 				log.Infof("[ratelimit] blocked handler=%s dim=%s value=%s", handler, dim, value)
-				c.JSON(http.StatusTooManyRequests, map[string]any{
-					"success": false,
-					"data":    nil,
-					"error": map[string]any{
-						"code":    int(biz.CodeRateLimitExceeded),
-						"message": biz.CodeRateLimitExceeded.Message(),
-					},
-				})
+				c.JSON(http.StatusOK, biz.Fail(biz.CodeRateLimitExceeded))
 				c.Abort()
 				return
 			}
@@ -172,17 +165,7 @@ func Middleware(rdb *redis.Client, handler string, dims ...Dimension) app.Handle
 
 // clientIP 获取真实客户端 IP，优先读 X-Forwarded-For。
 func clientIP(c *app.RequestContext) string {
-	if xff := string(c.GetHeader("X-Forwarded-For")); xff != "" {
-		// 取第一个 IP（最左侧为原始客户端）
-		if idx := strings.Index(xff, ","); idx > 0 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
-	if xri := string(c.GetHeader("X-Real-IP")); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	return c.ClientIP()
+	return hertzx.ClientIP(c)
 }
 
 // userID 从 context 中读取已由 JWT 中间件注入的 user_id。

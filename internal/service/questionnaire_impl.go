@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"ai_interview/internal/domain"
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/log"
 	"ai_interview/internal/storage/postgres"
+	biz "ai_interview/internal/utils/respx"
 )
 
 // 问卷标注业务约束常量（v1 已确认）：

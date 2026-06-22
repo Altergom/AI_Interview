@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"ai_interview/internal/auth"
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/service"
 	"ai_interview/internal/storage/postgres"
+	biz "ai_interview/internal/utils/respx"
 )
 
 // fakeUserRepo 实现最小接口供测试使用。

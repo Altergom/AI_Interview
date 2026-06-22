@@ -37,6 +37,7 @@ project-root/
 │   └── utils/          # 工具函数
 ├── internal/
 │   ├── handler/        # HTTP 路由层（仅参数校验 + 调用 service）
+│   ├── router/         # 路由注册层（集中记录并注册所有 HTTP/WS 路由）
 │   ├── service/        # 业务逻辑层
 │   ├── domain/         # 领域模型（所有共享类型定义在此）
 │   ├── storage/        # 存储层（postgres / redis / s3 / milvus / es）
@@ -70,6 +71,31 @@ project-root/
 - 不要跨 service 文件调用私有函数
 - 所有 API 响应格式：`{ "success": true, "data": {}, "error": null }`
 - 敏感信息只从环境变量读取，禁止硬编码
+
+### 后端路由规范
+- 路由注册统一收敛在 `internal/router` 包：只在这里出现 `Group/GET/POST/...` 等路由声明
+- `handler.NewServer` 只负责初始化 Hertz + 组装依赖并调用 `router.Register(...)`，不要在 `handler/handler.go` 内直接写路由
+- 模块拆分规则：
+  - `internal/router/router.go`：总入口（创建 `/v1` 分组、串联各模块注册）
+  - `internal/router/<module>.go`：按模块注册路由（例如 `auth.go`、`resume.go`、`interview.go`）
+  - `internal/handler/<module>.go`：实现具体 handler 方法（参数校验 + 调用 service），不做路由声明
+- 路由分层约定：
+  - 公开路由：`/`、`/health`、`/healthz`、`/v1/auth/*`、`/v1/device/check`
+  - 受保护路由：`/v1/resume/*`、`/v1/interview/*`（HTTP）、`/v1/report/*`、`/v1/questionnaire/*` 统一挂 JWT 中间件
+  - WebSocket 路由：`/v1/interview/ws/:interview_id` 不挂 JWT 中间件（见下文原因），鉴权在握手阶段完成
+- WebSocket 鉴权与安全要求：
+  - 浏览器原生 WebSocket API 不支持自定义 header，因此 WS 路由鉴权逻辑必须在握手阶段实现
+  - token 获取顺序：优先 `Authorization: Bearer <token>`，为空再读取 query 参数 `token=<token>`
+  - `CheckOrigin` 不允许长期保持“全放行”，生产环境需按配置白名单校验来源
+- 限流约定（保持 key 与维度一致，便于观测与压测）：
+  - `/v1/resume/parse`：IP + USER 双维度限流，key 为 `resume.parse`
+  - `/v1/questionnaire/submit`：IP + USER 双维度限流，key 为 `questionnaire.submit`
+  - WS 握手：IP + USER 双维度限流，连接建立相比普通 HTTP 可更宽松，但必须保留限流
+- 新增/调整接口的必做项：
+  - 在 `internal/router` 增补或修改路由声明，并按模块归档到对应文件
+  - 同步更新 `docu/api.md` 的接口定义与 curl 示例，避免文档与实现漂移
+  - 变更接口语义/响应结构时同步更新前端调用与相关测试
+  - 避免引入 import cycle：`internal/router` 不应依赖 `internal/handler`（路由层通过 `router.Deps` 以接口方式接收 handler 实例）
 
 ### 前端规范
 - 组件使用函数式写法，禁止 class 组件

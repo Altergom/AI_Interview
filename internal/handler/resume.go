@@ -7,9 +7,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"ai_interview/internal/domain"
-	biz "ai_interview/internal/errors"
 	authmw "ai_interview/internal/middleware/auth"
 	"ai_interview/internal/service"
+	biz "ai_interview/internal/utils/respx"
 )
 
 type resumeHandler struct {

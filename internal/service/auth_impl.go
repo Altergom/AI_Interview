@@ -7,12 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"ai_interview/internal/auth"
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/log"
 	"ai_interview/internal/storage/postgres"
+	"ai_interview/internal/utils/uuidx"
+	biz "ai_interview/internal/utils/respx"
 )
 
 type authService struct {
@@ -115,7 +114,7 @@ func (s *authService) Login(ctx context.Context, req LoginRequest) (*AuthResult,
 // CreateGuest 生成游客账号：guest_{uuid8} 前缀 ID + is_guest=true + 24h JWT。
 func (s *authService) CreateGuest(ctx context.Context) (*GuestResult, error) {
 	// 用 uuid 生成唯一短标识，前 8 位作为展示名后缀
-	shortID := strings.ReplaceAll(uuid.New().String(), "-", "")[:8]
+	shortID := uuidx.NewShort(8)
 	username := "guest_" + shortID
 	// 邮箱占位，保证 NOT NULL UNIQUE 约束
 	email := username + "@guest.local"

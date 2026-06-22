@@ -6,11 +6,11 @@ import (
 	"net/http"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/google/uuid"
 
-	biz "ai_interview/internal/errors"
 	authmw "ai_interview/internal/middleware/auth"
 	"ai_interview/internal/service"
+	"ai_interview/internal/utils/uuidx"
+	biz "ai_interview/internal/utils/respx"
 )
 
 type interviewHandler struct {
@@ -103,7 +103,7 @@ func (h *interviewHandler) Audio(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 	if turnID == "" {
-		turnID = uuid.New().String()[:8]
+		turnID = uuidx.NewShort(8)
 	}
 
 	body, err := io.ReadAll(c.RequestBodyStream())

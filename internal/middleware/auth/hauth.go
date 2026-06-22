@@ -3,12 +3,12 @@ package auth
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"ai_interview/internal/auth"
-	biz "ai_interview/internal/errors"
+	"ai_interview/internal/utils/hertzx"
+	biz "ai_interview/internal/utils/respx"
 )
 
 // ctxKey 防止 context key 冲突的私有类型。
@@ -34,24 +34,9 @@ const (
 	CtxKeyIsGuest = "is_guest"
 )
 
-// authErrResp 401 响应体，与 handler.Result[T] 格式保持一致，避免 import cycle。
-type authErrResp struct {
-	Success bool         `json:"success"`
-	Data    any          `json:"data"`
-	Error   *authErrBody `json:"error"`
-}
-
-type authErrBody struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 func rejectUnauthorized(ctx context.Context, c *app.RequestContext, msg string) {
-	c.JSON(http.StatusUnauthorized, authErrResp{
-		Success: false,
-		Data:    nil,
-		Error:   &authErrBody{Code: int(biz.CodeUnauthorized), Message: msg},
-	})
+	_ = msg
+	c.JSON(http.StatusOK, biz.Fail(biz.CodeUnauthorized))
 	c.Abort()
 }
 
@@ -68,7 +53,7 @@ func rejectUnauthorized(ctx context.Context, c *app.RequestContext, msg string) 
 //	protected := v1.Group("/resume", authmw.HAuth(jwtSecret))
 func HAuth(secret string) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
-		token := extractBearer(c)
+		token := hertzx.BearerToken(c)
 		if token == "" {
 			rejectUnauthorized(ctx, c, "missing or malformed authorization header")
 			return
@@ -84,19 +69,6 @@ func HAuth(secret string) app.HandlerFunc {
 		c.Set(CtxKeyIsGuest, claims.IsGuest)
 		c.Next(ctx)
 	}
-}
-
-// extractBearer 从 Authorization 头提取 Bearer token。
-func extractBearer(c *app.RequestContext) string {
-	header := string(c.GetHeader("Authorization"))
-	if !strings.HasPrefix(header, "Bearer ") {
-		return ""
-	}
-	token := strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
-	if token == "" {
-		return ""
-	}
-	return token
 }
 
 // GetUserID 从 Hertz context 中读取当前用户 ID（由 HAuth 注入）。
