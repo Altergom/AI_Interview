@@ -12,7 +12,7 @@ import type { Direction } from '../../types/interview';
 export const DirectionSelect = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { position, setDirection } = useInterviewStore();
+  const { position, setDirection, setInterviewId } = useInterviewStore();
   const [selected, setSelected] = useState<Direction | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,11 +26,13 @@ export const DirectionSelect = () => {
 
     setLoading(true);
     try {
-      await configInterview({
+      const response = await configInterview({
         user_id: user.user_id,
         position,
         direction: selected,
       });
+
+      setInterviewId(response.interview_id);
       navigate('/prepare');
     } catch (error) {
       console.error('配置失败', error);
@@ -41,22 +43,22 @@ export const DirectionSelect = () => {
 
   return (
     <Container showHeader>
-      <div className="max-w-4xl mx-auto py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">选择面试方向</h1>
-        <p className="text-gray-600 mb-8">请选择您的技术方向</p>
+      <div className="mx-auto max-w-4xl py-8">
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">选择面试方向</h1>
+        <p className="mb-8 text-gray-600">请选择您的技术方向</p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
           {DIRECTIONS.map((dir) => (
             <Card
               key={dir.value}
               className={`cursor-pointer transition-all ${
                 selected === dir.value
-                  ? 'ring-2 ring-primary-500 bg-primary-50'
+                  ? 'bg-primary-50 ring-2 ring-primary-500'
                   : 'hover:shadow-lg'
               }`}
               onClick={() => handleSelect(dir.value)}
             >
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              <h3 className="mb-2 text-xl font-semibold text-gray-900">
                 {dir.label}
               </h3>
               <p className="text-gray-600">{dir.description}</p>

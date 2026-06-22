@@ -110,6 +110,7 @@ export const useInterview = () => {
     stage,
     loading,
     error,
+    setInterviewId,
     setStage,
     handleConfigInterview,
     handleCreateInterview,

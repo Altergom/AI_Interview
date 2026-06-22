@@ -47,15 +47,16 @@ export interface ResumeSubmitRequest {
   education: ResumeEducation;
 }
 
-// PDF 上传请求
-export interface ResumePDFUploadRequest {
-  user_id: string;
-  file: File;
+// 简历提交响应
+export interface ResumeSubmitResponse {
+  resume_id: string;
+}
+
+// 预签名上传地址响应
+export interface ResumeUploadURLResponse {
+  upload_url: string;
+  object_key: string;
 }
 
 // 简历解析响应
-export interface ResumeParseResponse {
-  success: boolean;
-  resume?: StructuredResume;
-  error?: string;
-}
+export type ResumeParseResponse = StructuredResume;

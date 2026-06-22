@@ -4,20 +4,40 @@ import type {
   ResumeSubmitRequest,
   ResumeParseResponse,
   ResumeSubmitResponse,
+  ResumeUploadURLResponse,
 } from '../types/resume';
 
-// 解析简历 PDF
+const DEFAULT_PDF_CONTENT_TYPE = 'application/pdf';
+
+// 解析简历 PDF：先拿预签名地址，再直传对象存储，最后用 object_key 触发解析
 export const parseResume = async (file: File): Promise<ResumeParseResponse> => {
-  const formData = new FormData();
-  formData.append('file', file);
+  const uploadURLResponse = await apiClient.get<ApiResponse<ResumeUploadURLResponse>>(
+    '/resume/upload-url',
+    {
+      params: {
+        filename: file.name,
+      },
+    }
+  );
+
+  const { upload_url, object_key } = uploadURLResponse.data.data;
+
+  const uploadResponse = await fetch(upload_url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': file.type || DEFAULT_PDF_CONTENT_TYPE,
+    },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`简历上传失败 (${uploadResponse.status})`);
+  }
 
   const response = await apiClient.post<ApiResponse<ResumeParseResponse>>(
     '/resume/parse',
-    formData,
     {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      object_key,
     }
   );
 
