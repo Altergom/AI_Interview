@@ -5,6 +5,7 @@ interface CardProps {
   title?: string;
   className?: string;
   padding?: 'none' | 'sm' | 'md' | 'lg';
+  onClick?: () => void;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -12,6 +13,7 @@ export const Card: React.FC<CardProps> = ({
   title,
   className = '',
   padding = 'md',
+  onClick,
 }) => {
   const paddingStyles = {
     none: '',
@@ -20,8 +22,24 @@ export const Card: React.FC<CardProps> = ({
     lg: 'p-8',
   };
 
+  const isClickable = typeof onClick === 'function';
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!isClickable) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
   return (
-    <div className={`bg-white rounded-lg shadow-md ${className}`}>
+    <div
+      className={`bg-white rounded-lg shadow-md ${className}`}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+    >
       {title && (
         <div className="px-6 py-4 border-b">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>

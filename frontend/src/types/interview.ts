@@ -19,13 +19,12 @@ export interface InterviewConfigRequest {
 
 // 面试配置响应
 export interface InterviewConfigResponse {
-  config_id: string;
-  message: string;
+  interview_id: string;
 }
 
 // 创建面试请求
 export interface CreateInterviewRequest {
-  user_id: string;
+  interview_id: string;
 }
 
 // 创建面试响应
