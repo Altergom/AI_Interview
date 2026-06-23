@@ -36,7 +36,7 @@ export const ResumeForm = () => {
       });
       navigate('/config');
     } catch (err: any) {
-      setError(err.response?.data?.message || '提交失败，请稍后重试');
+      setError(err?.msg || err?.response?.data?.msg || err?.response?.data?.message || err?.message || '提交失败，请稍后重试');
     } finally {
       setLoading(false);
     }

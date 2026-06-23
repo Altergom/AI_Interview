@@ -18,7 +18,7 @@ export const PDFUpload = () => {
       const result = await parseResume(file);
       setResume(result);
     } catch (error: any) {
-      setParseError(error.response?.data?.message || '简历解析失败，请手动填写');
+      setParseError(error?.msg || error?.response?.data?.msg || error?.response?.data?.message || error?.message || '简历解析失败，请手动填写');
     } finally {
       setUploading(false);
       setParsing(false);

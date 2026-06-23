@@ -53,9 +53,4 @@ export interface ResumePDFUploadRequest {
   file: File;
 }
 
-// 简历解析响应
-export interface ResumeParseResponse {
-  success: boolean;
-  resume?: StructuredResume;
-  error?: string;
-}
+export type ResumeParseResponse = StructuredResume;

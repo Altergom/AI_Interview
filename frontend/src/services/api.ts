@@ -32,11 +32,36 @@ apiClient.interceptors.request.use(
 // 响应拦截器：统一错误处理
 apiClient.interceptors.response.use(
   (response) => {
+    const body = response.data as ApiResponse | undefined;
+    if (body && typeof body === 'object' && typeof body.code === 'number') {
+      const msg = body.msg ?? body.message;
+      if (body.code !== 0) {
+        switch (body.code) {
+          case 1401:
+            useAuthStore.getState().clearAuth();
+            window.location.href = '/login';
+            break;
+          default:
+            console.error(`API Error [${body.code}]: ${msg}`);
+        }
+
+        return Promise.reject({
+          ...body,
+          msg,
+        });
+      }
+
+      if (!body.msg && body.message) {
+        body.msg = body.message;
+      }
+    }
+
     return response;
   },
   (error: AxiosError<ApiResponse>) => {
     if (error.response) {
-      const { code, message } = error.response.data;
+      const { code } = error.response.data;
+      const msg = error.response.data.msg ?? error.response.data.message;
 
       // 根据错误码处理
       // 1401 = CodeUnauthorized（与后端 internal/errors/code.go 对齐）
@@ -47,16 +72,20 @@ apiClient.interceptors.response.use(
           window.location.href = '/login';
           break;
         default:
-          console.error(`API Error [${code}]: ${message}`);
+          console.error(`API Error [${code}]: ${msg}`);
       }
 
-      return Promise.reject(error.response.data);
+      return Promise.reject({
+        ...error.response.data,
+        msg,
+      });
     }
 
     // 网络错误或超时
     return Promise.reject({
       code: -1,
-      message: error.message || '网络请求失败',
+      msg: error.message || '网络请求失败',
+      data: null,
     });
   }
 );
