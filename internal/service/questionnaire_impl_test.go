@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"ai_interview/internal/domain"
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/service"
 	"ai_interview/internal/storage/postgres"
+	biz "ai_interview/internal/utils/respx"
 )
 
 // fakeQuestionnaireRepo 内存实现 QuestionnaireRepository，单测专用。

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +15,6 @@ import (
 
 	"ai_interview/internal/llm"
 	"ai_interview/internal/log"
-	rediskeys "ai_interview/internal/storage/redis"
 )
 
 // SelectorConfig question_selector 的构造参数。
@@ -267,37 +265,4 @@ func (b *localFSBackend) Edit(_ context.Context, req *einofilesystem.EditRequest
 		content = content[:idx] + req.NewString + content[idx+len(req.OldString):]
 	}
 	return os.WriteFile(req.FilePath, []byte(content), 0o644)
-}
-
-// ------- 历史题目去重 -------
-
-// questionHash 计算题目文本的去重 hash（SHA-256 前 16 字节 hex）。
-func questionHash(question string) string {
-	sum := sha256.Sum256([]byte(question))
-	return fmt.Sprintf("%x", sum[:16])
-}
-
-// MarkQuestionAsked 将题目 hash 写入 Redis Set，TTL 与面试状态对齐。
-func MarkQuestionAsked(ctx context.Context, rdb *redis.Client, interviewID, question string, ttl time.Duration) error {
-	key := rediskeys.InterviewAskedQuestionsKey(interviewID)
-	hash := questionHash(question)
-	pipe := rdb.Pipeline()
-	pipe.SAdd(ctx, key, hash)
-	pipe.Expire(ctx, key, ttl)
-	_, err := pipe.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("[selector] mark asked question: %w", err)
-	}
-	return nil
-}
-
-// IsQuestionAsked 检查题目是否已出过。
-func IsQuestionAsked(ctx context.Context, rdb *redis.Client, interviewID, question string) (bool, error) {
-	key := rediskeys.InterviewAskedQuestionsKey(interviewID)
-	hash := questionHash(question)
-	exists, err := rdb.SIsMember(ctx, key, hash).Result()
-	if err != nil {
-		return false, fmt.Errorf("[selector] check asked question: %w", err)
-	}
-	return exists, nil
 }

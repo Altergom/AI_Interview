@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/ut"
 
 	jwtauth "ai_interview/internal/auth"
+	biz "ai_interview/internal/utils/respx"
 	authmw "ai_interview/internal/middleware/auth"
 )
 
@@ -71,8 +73,22 @@ func TestHAuth_MissingToken(t *testing.T) {
 	w := ut.PerformRequest(h.Engine, "GET", "/protected", nil)
 	resp := w.Result()
 
-	if resp.StatusCode() != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", resp.StatusCode())
+	if resp.StatusCode() != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode())
+	}
+	var body struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data any    `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &body); err != nil {
+		t.Fatalf("unmarshal body: %v, raw=%s", err, resp.Body())
+	}
+	if body.Code != int(biz.CodeUnauthorized) {
+		t.Fatalf("expected code %d, got %d", int(biz.CodeUnauthorized), body.Code)
+	}
+	if body.Msg == "" {
+		t.Fatalf("expected non-empty msg")
 	}
 }
 
@@ -83,8 +99,22 @@ func TestHAuth_InvalidToken(t *testing.T) {
 		ut.Header{Key: "Authorization", Value: "Bearer this.is.invalid"})
 	resp := w.Result()
 
-	if resp.StatusCode() != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", resp.StatusCode())
+	if resp.StatusCode() != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode())
+	}
+	var body struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data any    `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &body); err != nil {
+		t.Fatalf("unmarshal body: %v, raw=%s", err, resp.Body())
+	}
+	if body.Code != int(biz.CodeUnauthorized) {
+		t.Fatalf("expected code %d, got %d", int(biz.CodeUnauthorized), body.Code)
+	}
+	if body.Msg == "" {
+		t.Fatalf("expected non-empty msg")
 	}
 }
 
@@ -97,7 +127,21 @@ func TestHAuth_WrongSecret(t *testing.T) {
 		ut.Header{Key: "Authorization", Value: "Bearer " + tok})
 	resp := w.Result()
 
-	if resp.StatusCode() != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for wrong secret, got %d", resp.StatusCode())
+	if resp.StatusCode() != http.StatusOK {
+		t.Fatalf("expected 200 for wrong secret, got %d", resp.StatusCode())
+	}
+	var body struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data any    `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &body); err != nil {
+		t.Fatalf("unmarshal body: %v, raw=%s", err, resp.Body())
+	}
+	if body.Code != int(biz.CodeUnauthorized) {
+		t.Fatalf("expected code %d, got %d", int(biz.CodeUnauthorized), body.Code)
+	}
+	if body.Msg == "" {
+		t.Fatalf("expected non-empty msg")
 	}
 }

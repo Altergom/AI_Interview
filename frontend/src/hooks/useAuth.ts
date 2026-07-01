@@ -16,7 +16,7 @@ export const useAuth = () => {
       localStorage.setItem('user', JSON.stringify(response));
       return response;
     } catch (err: any) {
-      setError(err.message || '登录失败');
+      setError(err?.msg || err?.message || '登录失败');
       return null;
     } finally {
       setLoading(false);
@@ -33,7 +33,7 @@ export const useAuth = () => {
       localStorage.setItem('user', JSON.stringify(response));
       return response;
     } catch (err: any) {
-      setError(err.message || '注册失败');
+      setError(err?.msg || err?.message || '注册失败');
       return null;
     } finally {
       setLoading(false);
@@ -50,7 +50,7 @@ export const useAuth = () => {
       localStorage.setItem('user', JSON.stringify(response));
       return response;
     } catch (err: any) {
-      setError(err.message || '游客登录失败');
+      setError(err?.msg || err?.message || '游客登录失败');
       return null;
     } finally {
       setLoading(false);

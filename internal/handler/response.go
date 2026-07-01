@@ -6,8 +6,8 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/log"
+	biz "ai_interview/internal/utils/respx"
 )
 
 // ─── 响应结构 ──────────────────────────────────────────────────────────────────

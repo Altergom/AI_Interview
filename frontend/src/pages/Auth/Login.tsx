@@ -56,7 +56,7 @@ export const Login = () => {
       toast.success('登录成功');
       navigate('/resume');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || '登录失败，请检查邮箱和密码');
+      toast.error(error?.msg || error?.response?.data?.msg || error?.response?.data?.message || error?.message || '登录失败，请检查邮箱和密码');
     } finally {
       setLoading(false);
     }
@@ -119,4 +119,3 @@ export const Login = () => {
     </div>
   );
 };
-

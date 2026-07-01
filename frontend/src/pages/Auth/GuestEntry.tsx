@@ -28,7 +28,7 @@ export const GuestEntry = () => {
       setGuest(true);
       navigate('/resume');
     } catch (error: any) {
-      setError(error.response?.data?.message || '游客登录失败，请稍后重试');
+      setError(error?.msg || error?.response?.data?.msg || error?.response?.data?.message || error?.message || '游客登录失败，请稍后重试');
     } finally {
       setLoading(false);
     }

@@ -10,8 +10,8 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	biz "ai_interview/internal/errors"
 	"ai_interview/internal/log"
+	biz "ai_interview/internal/utils/respx"
 )
 
 const (

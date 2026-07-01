@@ -80,7 +80,7 @@ export const Register = () => {
       setToken(response.token);
       navigate('/resume');
     } catch (error: any) {
-      setApiError(error.response?.data?.message || '注册失败，请稍后重试');
+      setApiError(error?.msg || error?.response?.data?.msg || error?.response?.data?.message || error?.message || '注册失败，请稍后重试');
     } finally {
       setLoading(false);
     }

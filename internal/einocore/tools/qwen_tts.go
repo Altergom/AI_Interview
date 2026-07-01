@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 
 	"ai_interview/internal/config"
 	"ai_interview/internal/log"
+	"ai_interview/internal/utils/wsx"
 )
 
 const (
@@ -207,23 +207,9 @@ func (s *QwenTTSService) SetVoice(voice string) {
 
 func (s *QwenTTSService) dial(ctx context.Context) (*websocket.Conn, error) {
 	url := fmt.Sprintf("%s?model=%s", ttsWSURL, s.model)
-	hdr := http.Header{"Authorization": []string{"Bearer " + s.apiKey}}
-
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	conn, _, err := dialer.DialContext(ctx, url, hdr)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
+	return wsx.DialBearer(ctx, url, s.apiKey)
 }
 
 func (s *QwenTTSService) writeJSON(conn *websocket.Conn, v any) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Errorf("[TTS] marshal msg: %w", err)
-	}
-	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-		return fmt.Errorf("[TTS] write msg: %w", err)
-	}
-	return nil
+	return wsx.WriteJSON(conn, v, "TTS")
 }

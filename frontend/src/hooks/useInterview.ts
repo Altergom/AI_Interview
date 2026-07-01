@@ -30,7 +30,7 @@ export const useInterview = () => {
       await configInterview(data);
       return true;
     } catch (err: any) {
-      setError(err.message || '面试配置失败');
+      setError(err?.msg || err?.message || '面试配置失败');
       return false;
     } finally {
       setLoading(false);
@@ -49,7 +49,7 @@ export const useInterview = () => {
       setStage(response.stage);
       return response.interview_id;
     } catch (err: any) {
-      setError(err.message || '创建面试失败');
+      setError(err?.msg || err?.message || '创建面试失败');
       return null;
     } finally {
       setLoading(false);
@@ -67,7 +67,7 @@ export const useInterview = () => {
       setStage(response.stage);
       return response;
     } catch (err: any) {
-      setError(err.message || '查询面试状态失败');
+      setError(err?.msg || err?.message || '查询面试状态失败');
       return null;
     } finally {
       setLoading(false);
@@ -82,7 +82,7 @@ export const useInterview = () => {
       await submitCode(data);
       return true;
     } catch (err: any) {
-      setError(err.message || '代码提交失败');
+      setError(err?.msg || err?.message || '代码提交失败');
       return false;
     } finally {
       setLoading(false);
@@ -98,7 +98,7 @@ export const useInterview = () => {
       setStage('finished');
       return true;
     } catch (err: any) {
-      setError(err.message || '结束面试失败');
+      setError(err?.msg || err?.message || '结束面试失败');
       return false;
     } finally {
       setLoading(false);
